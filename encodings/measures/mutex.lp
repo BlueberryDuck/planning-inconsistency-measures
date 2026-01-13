@@ -4,8 +4,7 @@
 % Achievable: goal becomes true at some time step
 achievable_goal(G) :- goal(G), reachable_prop(G).
 
-% coexist(G1, G2) is defined in reachability.lp for all props
-% Filter to goals only
+% coexist(G1, G2) derived from brave witnesses in reachability.lp
 goals_coexist(G1, G2) :- goal(G1), goal(G2), G1 != G2, coexist(G1, G2).
 
 % Definition 5: Mutex = both achievable but never coexist

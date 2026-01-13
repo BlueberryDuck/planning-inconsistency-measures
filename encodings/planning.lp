@@ -11,7 +11,3 @@ prop(P) :- goal(P).
 % Derive operator set
 operator(O) :- precond(O, _).
 operator(O) :- add(O, _).
-
-% RESULT function: RESULT(s,o) = (s \ delete(o)) U add(o)
-result_holds(P, S, O) :- state(S), applicable(O, S), holds(P, S), not delete(O, P).
-result_holds(P, S, O) :- state(S), applicable(O, S), add(O, P).

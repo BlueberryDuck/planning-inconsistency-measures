@@ -1,125 +1,120 @@
 #!/bin/bash
-# Automated verification of all measures against expected values
-# Uses brave reasoning for mutex and sequencing measures
+# Automated verification of planning inconsistency measures
+#
+# P1 (Unreachability): Computed deterministically in ASP
+# P2 (Mutex) & P3 (Sequencing): Require brave reasoning aggregation
+#   - Witnesses are collected across ALL answer sets
+#   - Mutex: goals that NEVER coexist in any reachable state
+#   - Sequencing: goal pairs where G2 is NEVER reachable after G1
 
 cd "$(dirname "$0")/.."
 
 CLINGO=".venv/bin/clingo"
-BASE="encodings/planning.lp encodings/reachability.lp"
-MEASURES="encodings/measures/unreachability.lp"
-EXPECTED_FILE="expected_profiles.txt"
+ENCODINGS="encodings/planning.lp encodings/reachability.lp"
+MEASURES="encodings/measures/unreachability.lp encodings/measures/mutex.lp encodings/measures/sequencing.lp"
 
-PASSED=0
-FAILED=0
+passed=0
+failed=0
 
 while IFS= read -r line; do
-	[[ "$line" =~ ^# ]] && continue
-	[[ -z "${line// /}" ]] && continue
+    [[ "$line" =~ ^# || -z "${line// /}" ]] && continue
 
-	scenario=$(echo "$line" | cut -d: -f1 | tr -d ' ')
-	values=$(echo "$line" | grep -oP '\(\K[^)]+')
-	expected=$(echo "$values" | tr -d ' ')
+    scenario="${line%%:*}"
+    scenario="${scenario// /}"
+    expected=$(echo "$line" | grep -oP '\(\K[^)]+' | tr -d ' ')
 
-	echo -n "Testing $scenario... "
+    printf "Testing %-20s " "$scenario..."
 
-	# Part 1: Get unreachability measures (deterministic, 1 answer set)
-	UR_OUTPUT=$($CLINGO $BASE $MEASURES scenarios/${scenario}.lp 1 2>&1)
-	if echo "$UR_OUTPUT" | grep -q "SATISFIABLE"; then
-		UR_SCOPE=$(echo "$UR_OUTPUT" | grep -oP 'i_ur_scope\(\K[0-9]+' | head -1)
-		UR_STRUCT=$(echo "$UR_OUTPUT" | grep -oP 'i_ur_struct\(\K[0-9]+' | head -1)
-	else
-		echo "CLINGO ERROR (unreachability)"
-		((FAILED++))
-		continue
-	fi
+    # Run with all measures - unreachability is deterministic
+    output=$($CLINGO $ENCODINGS $MEASURES "scenarios/${scenario}.lp" 1 2>&1)
 
-	# Part 2: Get brave witnesses for mutex and sequencing
-	BRAVE_OUTPUT=$($CLINGO $BASE scenarios/${scenario}.lp --enum-mode=brave 0 2>&1)
+    if ! echo "$output" | grep -q "SATISFIABLE"; then
+        echo "ERROR: clingo failed"
+        failed=$((failed + 1))
+        continue
+    fi
 
-	# Parse achievable goals (reachable propositions that are goals)
-	REACHABLE=$(echo "$BRAVE_OUTPUT" | grep -oP 'reachable_prop\(\K[^)]+' | sort -u)
+    # Extract P1 measures (deterministic)
+    ur_scope=$(echo "$output" | grep -oP 'i_ur_scope\(\K[0-9]+' | head -1)
+    ur_struct=$(echo "$output" | grep -oP 'i_ur_struct\(\K[0-9]+' | head -1)
+    [[ -z "$ur_scope" ]] && ur_scope=0
+    [[ -z "$ur_struct" ]] && ur_struct=0
 
-	# Parse coexistence witnesses
-	COEXIST=$(echo "$BRAVE_OUTPUT" | grep -oP 'coexist_witness\([^)]+\)' | sort -u)
+    # For P2/P3, we need brave reasoning to aggregate witnesses
+    brave=$($CLINGO $ENCODINGS "scenarios/${scenario}.lp" --enum-mode=brave 0 2>&1)
 
-	# Parse g2_after_g1 witnesses
-	G2_AFTER=$(echo "$BRAVE_OUTPUT" | grep -oP 'g2_after_g1_witness\([^)]+\)' | sort -u)
+    # Get goals and reachable props
+    goals=$(grep -oP 'goal\(\K[^)]+' "scenarios/${scenario}.lp" 2>/dev/null | sort -u)
+    reachable=$(echo "$brave" | grep -oP 'reachable_prop\(\K[^)]+' | sort -u)
 
-	# Get goals for this scenario
-	GOALS=$(grep -oP 'goal\(\K[^)]+' scenarios/${scenario}.lp | sort -u)
-	readarray -t GOAL_ARRAY <<<"$GOALS"
-	GOAL_COUNT=${#GOAL_ARRAY[@]}
+    # Collect brave witnesses
+    coexist_witnesses=$(echo "$brave" | grep -oP 'coexist_witness\([^)]+\)' || true)
+    g2_after_witnesses=$(echo "$brave" | grep -oP 'g2_after_g1_witness\([^)]+\)' || true)
 
-	# Compute mutex: achievable goal pairs that DON'T coexist
-	MX_SCOPE=0
-	MX_STRUCT=0
-	declare -A IN_MUTEX
+    # Convert goals to array
+    readarray -t goal_arr <<< "$goals"
 
-	for ((i = 0; i < GOAL_COUNT; i++)); do
-		for ((j = i + 1; j < GOAL_COUNT; j++)); do
-			g1="${GOAL_ARRAY[$i]}"
-			g2="${GOAL_ARRAY[$j]}"
-			[[ -z "$g1" || -z "$g2" ]] && continue
+    # Compute P2: Mutex pairs (achievable goals that never coexist)
+    declare -A in_mutex
+    mx_struct=0
 
-			# Check if both achievable
-			g1_reach=$(echo "$REACHABLE" | grep -cxF "$g1")
-			g2_reach=$(echo "$REACHABLE" | grep -cxF "$g2")
+    for ((i = 0; i < ${#goal_arr[@]}; i++)); do
+        for ((j = i + 1; j < ${#goal_arr[@]}; j++)); do
+            g1="${goal_arr[i]}"
+            g2="${goal_arr[j]}"
+            [[ -z "$g1" || -z "$g2" ]] && continue
 
-			if [ "$g1_reach" -gt 0 ] && [ "$g2_reach" -gt 0 ]; then
-				# Check coexistence (try both orderings)
-				if ! echo "$COEXIST" | grep -qE "coexist_witness\($g1,$g2\)|coexist_witness\($g2,$g1\)"; then
-					((MX_STRUCT++))
-					IN_MUTEX["$g1"]=1
-					IN_MUTEX["$g2"]=1
-				fi
-			fi
-		done
-	done
-	MX_SCOPE=${#IN_MUTEX[@]}
+            # Both must be achievable (reachable)
+            echo "$reachable" | grep -qxF "$g1" || continue
+            echo "$reachable" | grep -qxF "$g2" || continue
 
-	# Compute sequencing conflicts: achievable ordered pairs where g2 NOT reachable after g1
-	GS_SCOPE=0
-	GS_STRUCT=0
-	declare -A IN_SEQ
+            # Mutex if no coexist witness exists (either ordering)
+            if ! echo "$coexist_witnesses" | grep -qE "coexist_witness\($g1,$g2\)|coexist_witness\($g2,$g1\)"; then
+                mx_struct=$((mx_struct + 1))
+                in_mutex["$g1"]=1
+                in_mutex["$g2"]=1
+            fi
+        done
+    done
+    mx_scope=${#in_mutex[@]}
 
-	for ((i = 0; i < GOAL_COUNT; i++)); do
-		for ((j = 0; j < GOAL_COUNT; j++)); do
-			[[ $i -eq $j ]] && continue
-			g1="${GOAL_ARRAY[$i]}"
-			g2="${GOAL_ARRAY[$j]}"
-			[[ -z "$g1" || -z "$g2" ]] && continue
+    # Compute P3: Sequencing conflicts (ordered pairs where G2 unreachable after G1)
+    declare -A in_seq
+    gs_struct=0
 
-			g1_reach=$(echo "$REACHABLE" | grep -cxF "$g1")
-			g2_reach=$(echo "$REACHABLE" | grep -cxF "$g2")
+    for g1 in "${goal_arr[@]}"; do
+        for g2 in "${goal_arr[@]}"; do
+            [[ "$g1" == "$g2" || -z "$g1" || -z "$g2" ]] && continue
 
-			if [ "$g1_reach" -gt 0 ] && [ "$g2_reach" -gt 0 ]; then
-				# Check if g2 reachable after g1
-				if ! echo "$G2_AFTER" | grep -q "g2_after_g1_witness($g1,$g2)"; then
-					((GS_STRUCT++))
-					IN_SEQ["$g1"]=1
-					IN_SEQ["$g2"]=1
-				fi
-			fi
-		done
-	done
-	GS_SCOPE=${#IN_SEQ[@]}
+            echo "$reachable" | grep -qxF "$g1" || continue
+            echo "$reachable" | grep -qxF "$g2" || continue
 
-	actual="$UR_SCOPE,$UR_STRUCT,$MX_SCOPE,$MX_STRUCT,$GS_SCOPE,$GS_STRUCT"
+            # Conflict if no witness that G2 is reachable after G1
+            if ! echo "$g2_after_witnesses" | grep -q "g2_after_g1_witness($g1,$g2)"; then
+                gs_struct=$((gs_struct + 1))
+                in_seq["$g1"]=1
+                in_seq["$g2"]=1
+            fi
+        done
+    done
+    gs_scope=${#in_seq[@]}
 
-	if [ "$actual" = "$expected" ]; then
-		echo "PASS ($actual)"
-		((PASSED++))
-	else
-		echo "FAIL"
-		echo "  Expected: $expected"
-		echo "  Actual:   $actual"
-		((FAILED++))
-	fi
+    actual="$ur_scope,$ur_struct,$mx_scope,$mx_struct,$gs_scope,$gs_struct"
 
-	unset IN_MUTEX
-	unset IN_SEQ
-done <"$EXPECTED_FILE"
+    if [[ "$actual" == "$expected" ]]; then
+        echo "PASS ($actual)"
+        passed=$((passed + 1))
+    else
+        echo "FAIL"
+        echo "  Expected: $expected"
+        echo "  Actual:   $actual"
+        failed=$((failed + 1))
+    fi
+
+    unset in_mutex
+    unset in_seq
+done < "expected_profiles.txt"
 
 echo ""
-echo "Results: $PASSED passed, $FAILED failed"
-exit $FAILED
+echo "Results: $passed passed, $failed failed"
+exit "$failed"
