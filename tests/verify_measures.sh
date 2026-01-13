@@ -43,8 +43,8 @@ while IFS= read -r line; do
     # For P2/P3, we need brave reasoning to aggregate witnesses
     brave=$($CLINGO $ENCODINGS "scenarios/${scenario}.lp" --enum-mode=brave 0 2>&1)
 
-    # Get goals and reachable props
-    goals=$(grep -oP 'goal\(\K[^)]+' "scenarios/${scenario}.lp" 2>/dev/null | sort -u)
+    # Get goals and reachable props from clingo output
+    goals=$(echo "$brave" | grep -oP 'goal\(\K[^)]+' | sort -u)
     reachable=$(echo "$brave" | grep -oP 'reachable_prop\(\K[^)]+' | sort -u)
 
     # Collect brave witnesses

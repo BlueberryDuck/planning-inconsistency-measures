@@ -11,3 +11,5 @@ prop(P) :- goal(P).
 % Derive operator set
 operator(O) :- precond(O, _).
 operator(O) :- add(O, _).
+
+#show goal/1.
