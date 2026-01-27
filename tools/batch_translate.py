@@ -13,6 +13,7 @@ Example:
 """
 
 import argparse
+import re
 import sys
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
@@ -35,8 +36,11 @@ def find_pddl_pairs(benchmark_dir: Path) -> list[tuple[Path, Path, str]]:
     """
     pairs = []
 
-    # Find all domain files
-    domain_files = list(benchmark_dir.rglob("*domain*.pddl"))
+    # Find all domain files (including IPC dom[0-9]*.pddl pattern)
+    domain_files = list(benchmark_dir.rglob("*domain*.pddl")) + list(
+        benchmark_dir.rglob("dom[0-9]*.pddl")
+    )
+    domain_files = list(set(domain_files))  # Remove duplicates
 
     for domain_file in domain_files:
         domain_dir = domain_file.parent
@@ -47,7 +51,10 @@ def find_pddl_pairs(benchmark_dir: Path) -> list[tuple[Path, Path, str]]:
         # Find problem files in the same directory
         problem_patterns = [
             "p[0-9]*.pddl",
+            "prob[0-9]*.pddl",
+            "satprob[0-9]*.pddl",
             "problem*.pddl",
+            "*_problem*.pddl",
             "instance*.pddl",
             "task*.pddl",
         ]
@@ -56,15 +63,16 @@ def find_pddl_pairs(benchmark_dir: Path) -> list[tuple[Path, Path, str]]:
         for pattern in problem_patterns:
             problem_files.extend(domain_dir.glob(pattern))
 
-        # Handle case where domain file contains a number (domainXX.pddl)
-        if not problem_files and domain_file.stem.startswith("domain"):
-            # Try to find paired problem file
-            domain_num = "".join(c for c in domain_file.stem if c.isdigit())
-            if domain_num:
-                for pattern in [f"problem{domain_num}.pddl", f"p{domain_num}.pddl"]:
-                    prob = domain_dir / pattern
+        # Handle case where domain file contains a number (domainXX.pddl or domXX.pddl)
+        if not problem_files:
+            # Try to extract number from domain filename
+            if match := re.match(r"^dom(?:ain)?(\d+)$", domain_file.stem):
+                num = match.group(1)
+                for prefix in ["prob", "p", "problem"]:
+                    prob = domain_dir / f"{prefix}{num}.pddl"
                     if prob.exists():
                         problem_files.append(prob)
+                        break
 
         # Add pairs
         for problem_file in problem_files:
@@ -72,7 +80,11 @@ def find_pddl_pairs(benchmark_dir: Path) -> list[tuple[Path, Path, str]]:
             if "domain" in problem_file.stem.lower():
                 continue
 
-            output_name = f"{rel_path}_{problem_file.stem}.lp" if str(rel_path) != "." else f"{problem_file.stem}.lp"
+            output_name = (
+                f"{rel_path}_{problem_file.stem}.lp"
+                if str(rel_path) != "."
+                else f"{problem_file.stem}.lp"
+            )
             output_name = output_name.replace("/", "_").replace("\\", "_")
             pairs.append((domain_file, problem_file, output_name))
 
@@ -105,41 +117,47 @@ def main():
     parser = argparse.ArgumentParser(
         description="Batch translate PDDL benchmarks to thesis ASP format"
     )
-    parser.add_argument("benchmark_dir", type=Path, help="Directory containing PDDL benchmarks")
     parser.add_argument(
-        "-o", "--output",
+        "benchmark_dir", type=Path, help="Directory containing PDDL benchmarks"
+    )
+    parser.add_argument(
+        "-o",
+        "--output",
         type=Path,
         default=Path("benchmarks/translated"),
-        help="Output directory (default: benchmarks/translated)"
+        help="Output directory (default: benchmarks/translated)",
     )
     parser.add_argument(
-        "-j", "--workers",
+        "-j",
+        "--workers",
         type=int,
         default=4,
-        help="Number of parallel workers (default: 4)"
+        help="Number of parallel workers (default: 4)",
     )
-    parser.add_argument(
-        "-v", "--verbose",
-        action="store_true",
-        help="Verbose output"
-    )
+    parser.add_argument("-v", "--verbose", action="store_true", help="Verbose output")
     parser.add_argument(
         "--dry-run",
         action="store_true",
-        help="Show what would be translated without doing it"
+        help="Show what would be translated without doing it",
     )
 
     args = parser.parse_args()
 
     if not args.benchmark_dir.exists():
-        print(f"Error: Benchmark directory not found: {args.benchmark_dir}", file=sys.stderr)
+        print(
+            f"Error: Benchmark directory not found: {args.benchmark_dir}",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
     # Find all PDDL pairs
     pairs = find_pddl_pairs(args.benchmark_dir)
 
     if not pairs:
-        print(f"No PDDL domain/problem pairs found in {args.benchmark_dir}", file=sys.stderr)
+        print(
+            f"No PDDL domain/problem pairs found in {args.benchmark_dir}",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
     print(f"Found {len(pairs)} PDDL problem(s) to translate")

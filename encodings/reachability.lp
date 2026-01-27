@@ -1,6 +1,8 @@
 % Forward Reachability Analysis
 % Thesis Reference: Definition 1 (S_reach), Definition 2 (REACH)
 
+#include "../config/defaults.lp".
+
 % ============================================================
 % PART 1: Deterministic Reachability Fixpoint (for I_UR)
 % ============================================================
@@ -15,8 +17,8 @@ reachable_prop(P) :- operator(O), add(O, P),
 % Explores execution paths up to a fixed depth using choice rules.
 % horizon=20 is sufficient for most planning problems; increase if
 % reachable states exist beyond this depth.
+% Default horizon is defined in config/defaults.lp
 
-#const horizon = 20.
 time(0..horizon).
 
 holds(P, 0) :- init(P).

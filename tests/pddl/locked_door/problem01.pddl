@@ -5,5 +5,7 @@
   (:init)
 
   ;; Goal: be in the room
-  (:goal (in-room))
+  (:goal
+    (in-room)
+  )
 )

@@ -6,8 +6,10 @@
     (trust)
   )
 
-  (:goal (and
-    (partnership)
-    (opportunity)
-  ))
+  (:goal
+    (and
+      (partnership)
+      (opportunity)
+    )
+  )
 )

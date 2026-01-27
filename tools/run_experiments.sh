@@ -12,6 +12,9 @@
 
 cd "$(dirname "$0")/.."
 
+# Source shared library
+source tools/lib/aggregate_witnesses.sh
+
 INPUT_DIR="${1:-benchmarks/translated}"
 OUTPUT_CSV="${2:-experiments/results.csv}"
 TIMEOUT="${3:-60}"
@@ -20,14 +23,30 @@ CLINGO=".venv/bin/clingo"
 ENCODINGS="encodings/planning.lp encodings/reachability.lp"
 MEASURES="encodings/measures/unreachability.lp encodings/measures/mutex.lp encodings/measures/sequencing.lp"
 
+# Helper function to extract domain name from translated problem
+extract_domain() {
+    grep -m1 "^% Domain:" "$1" 2>/dev/null | sed 's/^% Domain: *//' | tr -d '[:space:]'
+}
+
+# Classify problem category based on measure profile
+classify_category() {
+    local ur="$1" mx="$2" gs="$3"
+    if [[ "$ur" -gt 0 ]]; then echo "2a"
+    elif [[ "$gs" -gt 0 ]]; then echo "2c-sequencing"
+    elif [[ "$mx" -gt 0 ]]; then echo "2c-mutex"
+    else echo "undetected"; fi
+}
+
 # Create output directory
 mkdir -p "$(dirname "$OUTPUT_CSV")"
 
-# Write CSV header
-echo "problem,i_ur_scope,i_ur_struct,i_mx_scope,i_mx_struct,i_gs_scope,i_gs_struct,time_s,status" > "$OUTPUT_CSV"
+# Write CSV header (11 fields)
+echo "domain,problem,i_ur_scope,i_ur_struct,i_mx_scope,i_mx_struct,i_gs_scope,i_gs_struct,category,time_s,status" > "$OUTPUT_CSV"
 
-# Count problems
-total=$(find "$INPUT_DIR" -name "*.lp" -type f 2>/dev/null | wc -l)
+# Find all .lp files recursively
+mapfile -t problem_files < <(find "$INPUT_DIR" -name "*.lp" -type f 2>/dev/null | sort)
+total=${#problem_files[@]}
+
 if [[ "$total" -eq 0 ]]; then
     echo "No .lp files found in $INPUT_DIR"
     exit 1
@@ -40,9 +59,11 @@ echo ""
 
 current=0
 
-for problem_file in "$INPUT_DIR"/*.lp; do
+for problem_file in "${problem_files[@]}"; do
     current=$((current + 1))
     problem_name=$(basename "$problem_file" .lp)
+    domain_name=$(extract_domain "$problem_file")
+    [[ -z "$domain_name" ]] && domain_name="unknown"
 
     printf "[%3d/%3d] %-40s " "$current" "$total" "$problem_name"
 
@@ -50,14 +71,14 @@ for problem_file in "$INPUT_DIR"/*.lp; do
 
     # Run clingo for P1 (deterministic) with timeout
     # Note: clingo exit codes: 10=SAT, 20=UNSAT, 30=finished enumeration
-    output=$(timeout "${TIMEOUT}s" $CLINGO $ENCODINGS $MEASURES "$problem_file" 1 2>&1)
+    output=$(timeout "${TIMEOUT}s" $CLINGO $ENCODINGS $MEASURES "$problem_file" 1 --warn=no-atom-undefined 2>&1)
     exit_code=$?
 
     if [[ $exit_code -eq 124 ]]; then
         end_time=$(date +%s.%N)
         elapsed=$(awk "BEGIN {printf \"%.3f\", $end_time - $start_time}")
         echo "TIMEOUT"
-        echo "$problem_name,,,,,,,${elapsed},TIMEOUT" >> "$OUTPUT_CSV"
+        echo "$domain_name,$problem_name,,,,,,,$elapsed,TIMEOUT" >> "$OUTPUT_CSV"
         continue
     fi
 
@@ -65,7 +86,7 @@ for problem_file in "$INPUT_DIR"/*.lp; do
         end_time=$(date +%s.%N)
         elapsed=$(awk "BEGIN {printf \"%.3f\", $end_time - $start_time}")
         echo "ERROR (exit $exit_code)"
-        echo "$problem_name,,,,,,,${elapsed},ERROR" >> "$OUTPUT_CSV"
+        echo "$domain_name,$problem_name,,,,,,,$elapsed,ERROR" >> "$OUTPUT_CSV"
         continue
     fi
 
@@ -74,7 +95,7 @@ for problem_file in "$INPUT_DIR"/*.lp; do
         end_time=$(date +%s.%N)
         elapsed=$(awk "BEGIN {printf \"%.3f\", $end_time - $start_time}")
         echo "UNSAT"
-        echo "$problem_name,,,,,,,${elapsed},UNSAT" >> "$OUTPUT_CSV"
+        echo "$domain_name,$problem_name,,,,,,,$elapsed,UNSAT" >> "$OUTPUT_CSV"
         continue
     fi
 
@@ -91,95 +112,43 @@ for problem_file in "$INPUT_DIR"/*.lp; do
 
     if [[ $remaining -le 0 ]]; then
         elapsed=$(awk "BEGIN {printf \"%.3f\", $current_time - $start_time}")
+        category=$(classify_category "$ur_scope" 0 0)
         echo "TIMEOUT (no time for brave)"
-        echo "$problem_name,$ur_scope,$ur_struct,,,,${elapsed},TIMEOUT_BRAVE" >> "$OUTPUT_CSV"
+        echo "$domain_name,$problem_name,$ur_scope,$ur_struct,,,,$category,$elapsed,TIMEOUT_BRAVE" >> "$OUTPUT_CSV"
         continue
     fi
 
     # Run brave reasoning for P2/P3 witness aggregation
-    brave=$(timeout "${remaining}s" $CLINGO $ENCODINGS "$problem_file" --enum-mode=brave 0 2>&1)
+    brave=$(timeout "${remaining}s" $CLINGO $ENCODINGS "$problem_file" --enum-mode=brave 0 --warn=no-atom-undefined 2>&1)
     brave_exit=$?
 
     if [[ $brave_exit -eq 124 ]]; then
         end_time=$(date +%s.%N)
         elapsed=$(awk "BEGIN {printf \"%.3f\", $end_time - $start_time}")
+        category=$(classify_category "$ur_scope" 0 0)
         echo "TIMEOUT (brave)"
-        echo "$problem_name,$ur_scope,$ur_struct,,,,${elapsed},TIMEOUT_BRAVE" >> "$OUTPUT_CSV"
+        echo "$domain_name,$problem_name,$ur_scope,$ur_struct,,,,$category,$elapsed,TIMEOUT_BRAVE" >> "$OUTPUT_CSV"
         continue
     fi
 
     if [[ $brave_exit -ne 10 && $brave_exit -ne 30 ]]; then
         end_time=$(date +%s.%N)
         elapsed=$(awk "BEGIN {printf \"%.3f\", $end_time - $start_time}")
+        category=$(classify_category "$ur_scope" 0 0)
         echo "ERROR (brave exit $brave_exit)"
-        echo "$problem_name,$ur_scope,$ur_struct,,,,${elapsed},ERROR_BRAVE" >> "$OUTPUT_CSV"
+        echo "$domain_name,$problem_name,$ur_scope,$ur_struct,,,,$category,$elapsed,ERROR_BRAVE" >> "$OUTPUT_CSV"
         continue
     fi
 
-    # Get goals and reachable props
-    goals=$(echo "$brave" | grep -oP 'goal\(\K[^)]+' | sort -u)
-    reachable=$(echo "$brave" | grep -oP 'reachable_prop\(\K[^)]+' | sort -u)
-
-    # Collect brave witnesses
-    coexist_witnesses=$(echo "$brave" | grep -oP 'coexist_witness\([^)]+\)' || true)
-    g2_after_witnesses=$(echo "$brave" | grep -oP 'g2_after_g1_witness\([^)]+\)' || true)
-
-    # Convert goals to array
-    readarray -t goal_arr <<< "$goals"
-
-    # Compute P2: Mutex pairs
-    declare -A in_mutex
-    mx_struct=0
-
-    for ((i = 0; i < ${#goal_arr[@]}; i++)); do
-        for ((j = i + 1; j < ${#goal_arr[@]}; j++)); do
-            g1="${goal_arr[i]}"
-            g2="${goal_arr[j]}"
-            [[ -z "$g1" || -z "$g2" ]] && continue
-
-            # Both must be reachable
-            echo "$reachable" | grep -qxF "$g1" || continue
-            echo "$reachable" | grep -qxF "$g2" || continue
-
-            # Mutex if no coexist witness
-            if ! echo "$coexist_witnesses" | grep -qE "coexist_witness\($g1,$g2\)|coexist_witness\($g2,$g1\)"; then
-                mx_struct=$((mx_struct + 1))
-                in_mutex["$g1"]=1
-                in_mutex["$g2"]=1
-            fi
-        done
-    done
-    mx_scope=${#in_mutex[@]}
-
-    # Compute P3: Sequencing conflicts
-    declare -A in_seq
-    gs_struct=0
-
-    for g1 in "${goal_arr[@]}"; do
-        for g2 in "${goal_arr[@]}"; do
-            [[ "$g1" == "$g2" || -z "$g1" || -z "$g2" ]] && continue
-
-            echo "$reachable" | grep -qxF "$g1" || continue
-            echo "$reachable" | grep -qxF "$g2" || continue
-
-            # Conflict if no g2_after_g1 witness
-            if ! echo "$g2_after_witnesses" | grep -q "g2_after_g1_witness($g1,$g2)"; then
-                gs_struct=$((gs_struct + 1))
-                in_seq["$g1"]=1
-                in_seq["$g2"]=1
-            fi
-        done
-    done
-    gs_scope=${#in_seq[@]}
+    # Compute P2/P3 measures using shared library
+    compute_p2_p3_measures "$brave"
 
     end_time=$(date +%s.%N)
     elapsed=$(awk "BEGIN {printf \"%.3f\", $end_time - $start_time}")
+    category=$(classify_category "$ur_scope" "$mx_scope" "$gs_scope")
 
-    echo "($ur_scope,$ur_struct,$mx_scope,$mx_struct,$gs_scope,$gs_struct) ${elapsed}s"
-    echo "$problem_name,$ur_scope,$ur_struct,$mx_scope,$mx_struct,$gs_scope,$gs_struct,$elapsed,OK" >> "$OUTPUT_CSV"
-
-    unset in_mutex
-    unset in_seq
+    echo "($ur_scope,$ur_struct,$mx_scope,$mx_struct,$gs_scope,$gs_struct) [$category] ${elapsed}s"
+    echo "$domain_name,$problem_name,$ur_scope,$ur_struct,$mx_scope,$mx_struct,$gs_scope,$gs_struct,$category,$elapsed,OK" >> "$OUTPUT_CSV"
 done
 
 echo ""

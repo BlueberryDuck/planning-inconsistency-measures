@@ -66,7 +66,9 @@ def ground_atom(atom, substitution: dict[Variable, Constant]) -> str | None:
     return None
 
 
-def extract_predicates_from_formula(formula, substitution: dict) -> Iterator[tuple[str, bool]]:
+def extract_predicates_from_formula(
+    formula, substitution: dict
+) -> Iterator[tuple[str, bool]]:
     """
     Extract predicates from a formula, yielding (atom_name, is_positive) tuples.
     """
@@ -98,14 +100,18 @@ def check_equality_constraint(formula, substitution: dict) -> bool:
         left = formula.left
         right = formula.right
         left_val = substitution.get(left, left) if isinstance(left, Variable) else left
-        right_val = substitution.get(right, right) if isinstance(right, Variable) else right
+        right_val = (
+            substitution.get(right, right) if isinstance(right, Variable) else right
+        )
         return left_val == right_val
     elif isinstance(formula, Not):
         if isinstance(formula.argument, EqualTo):
             return not check_equality_constraint(formula.argument, substitution)
         return True
     elif isinstance(formula, And):
-        return all(check_equality_constraint(op, substitution) for op in formula.operands)
+        return all(
+            check_equality_constraint(op, substitution) for op in formula.operands
+        )
     return True
 
 
@@ -135,7 +141,9 @@ def get_typed_objects(problem: Problem, domain: Domain) -> dict[str, list[Consta
     # Handle type hierarchy - objects of subtype are also of supertype
     if hasattr(domain, "types") and domain.types:
         for type_def in domain.types:
-            type_name = str(type_def.name) if hasattr(type_def, "name") else str(type_def)
+            type_name = (
+                str(type_def.name) if hasattr(type_def, "name") else str(type_def)
+            )
             type_tags = type_def.type_tags if hasattr(type_def, "type_tags") else set()
             for parent_tag in type_tags:
                 parent_name = str(parent_tag)
@@ -156,7 +164,9 @@ def get_typed_objects(problem: Problem, domain: Domain) -> dict[str, list[Consta
     return objects_by_type
 
 
-def ground_action(action, objects_by_type: dict[str, list[Constant]]) -> Iterator[tuple[str, list[str], list[str], list[str]]]:
+def ground_action(
+    action, objects_by_type: dict[str, list[Constant]]
+) -> Iterator[tuple[str, list[str], list[str], list[str]]]:
     """
     Ground an action schema and yield (action_name, preconditions, add_effects, delete_effects).
     """
@@ -167,7 +177,9 @@ def ground_action(action, objects_by_type: dict[str, list[Constant]]) -> Iterato
         action_name = sanitize_name(action.name)
 
         preconditions = []
-        for atom, is_positive in extract_predicates_from_formula(action.precondition, {}):
+        for atom, is_positive in extract_predicates_from_formula(
+            action.precondition, {}
+        ):
             if is_positive:
                 preconditions.append(atom)
 
@@ -217,14 +229,18 @@ def ground_action(action, objects_by_type: dict[str, list[Constant]]) -> Iterato
 
         # Extract grounded preconditions
         preconditions = []
-        for atom, is_positive in extract_predicates_from_formula(action.precondition, substitution):
+        for atom, is_positive in extract_predicates_from_formula(
+            action.precondition, substitution
+        ):
             if is_positive:
                 preconditions.append(atom)
 
         # Extract grounded effects
         add_effects = []
         delete_effects = []
-        for atom, is_positive in extract_predicates_from_formula(action.effect, substitution):
+        for atom, is_positive in extract_predicates_from_formula(
+            action.effect, substitution
+        ):
             if is_positive:
                 add_effects.append(atom)
             else:
@@ -263,7 +279,9 @@ def translate(domain: Domain, problem: Problem) -> str:
     # Ground and translate actions
     lines.append("% Actions")
     for action in domain.actions:
-        for action_name, preconditions, add_effects, delete_effects in ground_action(action, objects_by_type):
+        for action_name, preconditions, add_effects, delete_effects in ground_action(
+            action, objects_by_type
+        ):
             # Preconditions
             for prec in preconditions:
                 lines.append(f"precond({action_name}, {prec}).")
@@ -289,15 +307,9 @@ def main():
     parser.add_argument("domain", type=Path, help="PDDL domain file")
     parser.add_argument("problem", type=Path, help="PDDL problem file")
     parser.add_argument(
-        "-o", "--output",
-        type=Path,
-        help="Output file (default: stdout)"
+        "-o", "--output", type=Path, help="Output file (default: stdout)"
     )
-    parser.add_argument(
-        "-v", "--verbose",
-        action="store_true",
-        help="Print statistics"
-    )
+    parser.add_argument("-v", "--verbose", action="store_true", help="Print statistics")
 
     args = parser.parse_args()
 
@@ -327,7 +339,10 @@ def main():
         n_precond = output.count("precond(")
         n_add = output.count("add(")
         n_delete = output.count("delete(")
-        print(f"Stats: {n_init} init, {n_goal} goals, {n_precond} precond, {n_add} add, {n_delete} delete", file=sys.stderr)
+        print(
+            f"Stats: {n_init} init, {n_goal} goals, {n_precond} precond, {n_add} add, {n_delete} delete",
+            file=sys.stderr,
+        )
 
 
 if __name__ == "__main__":
