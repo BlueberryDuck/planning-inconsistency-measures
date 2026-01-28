@@ -19,40 +19,40 @@ Each measure has two variants:
 
 ## Setup
 
-```bash
-# Create environment with clingo
-micromamba create -p ./.venv -c conda-forge clingo -y
+Requires Docker.
 
-# Activate and install Python dependencies
-micromamba activate ./.venv
-pip install -r requirements.txt
+```bash
+docker compose build
 ```
 
 ## Quick Start
 
 ```bash
 # Run measures on a scenario
-.venv/bin/clingo encodings/planning.lp encodings/reachability.lp \
-                 encodings/measures/*.lp tests/scenarios/p1_unreachability/locked_door.lp 1
+./run.sh clingo encodings/planning.lp encodings/reachability.lp \
+         encodings/measures/*.lp tests/scenarios/p1_unreachability/locked_door.lp 1
 
-# Run all tests
-./tests/run_all_tests.sh
+# Run all tests (26 tests)
+./run.sh ./tests/run_all_tests.sh
 
 # Run specific test suite
-./tests/run_all_tests.sh measures      # ASP scenario tests
-./tests/run_all_tests.sh translator    # PDDL translator tests
-./tests/run_all_tests.sh batch         # Batch translator tests
-./tests/run_all_tests.sh experiments   # Experiment runner tests
+./run.sh ./tests/run_all_tests.sh measures      # ASP scenario tests
+./run.sh ./tests/run_all_tests.sh translator    # PDDL translator tests
+./run.sh ./tests/run_all_tests.sh batch         # Batch translator tests
+./run.sh ./tests/run_all_tests.sh experiments   # Experiment runner tests
 
 # Translate a PDDL problem
-.venv/bin/python tools/pddl_to_asp.py domain.pddl problem.pddl -o output.lp
+./run.sh python tools/pddl_to_asp.py domain.pddl problem.pddl -o output.lp
 
 # Batch translate benchmarks
-.venv/bin/python tools/batch_translate.py ~/benchmarks/ipc2016 \
-                 -o benchmarks/translated/ipc2016 -j 4
+./run.sh python tools/batch_translate.py ~/benchmarks/ipc2016 \
+         -o benchmarks/translated/ipc2016 -j 4
 
 # Run experiments with 60s timeout
-./tools/run_experiments.sh benchmarks/translated experiments/results.csv 60
+./run.sh ./tools/run_experiments.sh benchmarks/translated experiments/results.csv 60
+
+# Interactive shell
+./run.sh
 ```
 
 ## Project Structure
@@ -93,7 +93,10 @@ thesis-planning-measures/
 │   └── verify_solvable.sh       # Phase 1 sanity check
 ├── benchmarks/
 │   └── translated/              # Translated PDDL problems (generated)
-└── experiments/                 # Experiment results (CSV, markdown)
+├── experiments/                 # Experiment results (CSV, markdown)
+├── Dockerfile                   # Container definition
+├── docker-compose.yml           # Container orchestration
+└── run.sh                       # Convenience wrapper
 ```
 
 ## Test Scenarios
@@ -119,7 +122,7 @@ Profile format: `(I^scope_UR, I^struct_UR, I^scope_MX, I^struct_MX, I^scope_GS, 
 Translates PDDL domain/problem pairs to the thesis ASP format.
 
 ```bash
-.venv/bin/python tools/pddl_to_asp.py domain.pddl problem.pddl -o output.lp
+./run.sh python tools/pddl_to_asp.py domain.pddl problem.pddl -o output.lp
 ```
 
 ### batch_translate.py
@@ -127,11 +130,11 @@ Translates PDDL domain/problem pairs to the thesis ASP format.
 Parallel batch translation of PDDL benchmarks. Handles common IPC directory structures.
 
 ```bash
-.venv/bin/python tools/batch_translate.py ~/benchmarks/ipc2016 \
-                 -o benchmarks/translated -j 4 --verbose
+./run.sh python tools/batch_translate.py ~/benchmarks/ipc2016 \
+         -o benchmarks/translated -j 4 --verbose
 
 # Preview without translating
-.venv/bin/python tools/batch_translate.py ~/benchmarks/ipc2016 --dry-run
+./run.sh python tools/batch_translate.py ~/benchmarks/ipc2016 --dry-run
 ```
 
 ### run_experiments.sh
@@ -175,7 +178,7 @@ Default constants are defined in `config/defaults.lp`:
 Override via command line:
 
 ```bash
-.venv/bin/clingo ... -c horizon=100
+./run.sh clingo ... -c horizon=100
 ```
 
 ## Technical Notes

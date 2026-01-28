@@ -15,7 +15,6 @@ cd "$(dirname "$0")/.."
 INPUT_DIR="${1:-benchmarks/translated}"
 OUTPUT_CSV="${2:-experiments/horizon_analysis.csv}"
 
-CLINGO=".venv/bin/clingo"
 ENCODINGS="encodings/planning.lp encodings/reachability.lp"
 MEASURES="encodings/measures/unreachability.lp encodings/measures/mutex.lp encodings/measures/sequencing.lp"
 
@@ -65,7 +64,7 @@ for problem_file in $solvable_files; do
         start_time=$(date +%s.%N)
 
         # Run with specific horizon (override default)
-        output=$(timeout "${TIMEOUT}s" $CLINGO $ENCODINGS $MEASURES "$problem_file" 1 \
+        output=$(timeout "${TIMEOUT}s" clingo $ENCODINGS $MEASURES "$problem_file" 1 \
                  -c horizon="$horizon" --warn=no-atom-undefined 2>&1)
         exit_code=$?
 

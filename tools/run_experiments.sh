@@ -19,7 +19,6 @@ INPUT_DIR="${1:-benchmarks/translated}"
 OUTPUT_CSV="${2:-experiments/results.csv}"
 TIMEOUT="${3:-60}"
 
-CLINGO=".venv/bin/clingo"
 ENCODINGS="encodings/planning.lp encodings/reachability.lp"
 MEASURES="encodings/measures/unreachability.lp encodings/measures/mutex.lp encodings/measures/sequencing.lp"
 
@@ -71,7 +70,7 @@ for problem_file in "${problem_files[@]}"; do
 
     # Run clingo for P1 (deterministic) with timeout
     # Note: clingo exit codes: 10=SAT, 20=UNSAT, 30=finished enumeration
-    output=$(timeout "${TIMEOUT}s" $CLINGO $ENCODINGS $MEASURES "$problem_file" 1 --warn=no-atom-undefined 2>&1)
+    output=$(timeout "${TIMEOUT}s" clingo $ENCODINGS $MEASURES "$problem_file" 1 --warn=no-atom-undefined 2>&1)
     exit_code=$?
 
     if [[ $exit_code -eq 124 ]]; then
@@ -119,7 +118,7 @@ for problem_file in "${problem_files[@]}"; do
     fi
 
     # Run brave reasoning for P2/P3 witness aggregation
-    brave=$(timeout "${remaining}s" $CLINGO $ENCODINGS "$problem_file" --enum-mode=brave 0 --warn=no-atom-undefined 2>&1)
+    brave=$(timeout "${remaining}s" clingo $ENCODINGS "$problem_file" --enum-mode=brave 0 --warn=no-atom-undefined 2>&1)
     brave_exit=$?
 
     if [[ $brave_exit -eq 124 ]]; then

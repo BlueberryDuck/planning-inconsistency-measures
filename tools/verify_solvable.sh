@@ -18,7 +18,6 @@ source tools/lib/aggregate_witnesses.sh
 INPUT_DIR="${1:-benchmarks/translated}"
 OUTPUT_MD="experiments/phase1_verification.md"
 
-CLINGO=".venv/bin/clingo"
 ENCODINGS="encodings/planning.lp encodings/reachability.lp"
 MEASURES="encodings/measures/unreachability.lp encodings/measures/mutex.lp encodings/measures/sequencing.lp"
 
@@ -60,7 +59,7 @@ for problem_file in $solvable_files; do
     printf "[%3d/%3d] %-50s " "$current" "$total" "$problem_name"
 
     # Run clingo for all measures
-    output=$(timeout "${TIMEOUT}s" $CLINGO $ENCODINGS $MEASURES "$problem_file" 1 --warn=no-atom-undefined 2>&1)
+    output=$(timeout "${TIMEOUT}s" clingo $ENCODINGS $MEASURES "$problem_file" 1 --warn=no-atom-undefined 2>&1)
     exit_code=$?
 
     if [[ $exit_code -eq 124 ]]; then
@@ -91,7 +90,7 @@ for problem_file in $solvable_files; do
     [[ -z "$ur_struct" ]] && ur_struct=0
 
     # Run brave reasoning for P2/P3
-    brave=$(timeout "${TIMEOUT}s" $CLINGO $ENCODINGS "$problem_file" --enum-mode=brave 0 --warn=no-atom-undefined 2>&1)
+    brave=$(timeout "${TIMEOUT}s" clingo $ENCODINGS "$problem_file" --enum-mode=brave 0 --warn=no-atom-undefined 2>&1)
     brave_exit=$?
 
     if [[ $brave_exit -eq 124 ]]; then

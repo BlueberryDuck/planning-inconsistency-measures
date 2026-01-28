@@ -9,7 +9,6 @@
 
 cd "$(dirname "$0")/.."
 
-PYTHON=".venv/bin/python"
 EXPERIMENT_RUNNER="tools/run_experiments.sh"
 BATCH_TRANSLATOR="tools/batch_translate.py"
 SCRATCHPAD="/tmp/thesis-test-experiments-$$"
@@ -26,7 +25,7 @@ echo ""
 # Setup: Create test problems by translating PDDL
 input_dir="$SCRATCHPAD/problems"
 mkdir -p "$input_dir"
-$PYTHON $BATCH_TRANSLATOR tests/pddl -o "$input_dir" >/dev/null 2>&1
+python $BATCH_TRANSLATOR tests/pddl -o "$input_dir" >/dev/null 2>&1
 
 # Verify we have test files
 if [[ $(find "$input_dir" -name "*.lp" -type f | wc -l) -eq 0 ]]; then

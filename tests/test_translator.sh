@@ -11,8 +11,6 @@ cd "$(dirname "$0")/.."
 
 source tools/lib/aggregate_witnesses.sh
 
-CLINGO=".venv/bin/clingo"
-PYTHON=".venv/bin/python"
 TRANSLATOR="tools/pddl_to_asp.py"
 ENCODINGS="encodings/planning.lp encodings/reachability.lp"
 MEASURES="encodings/measures/unreachability.lp encodings/measures/mutex.lp encodings/measures/sequencing.lp"
@@ -49,21 +47,21 @@ for test_case in "${test_cases[@]}"; do
     fi
 
     # Test 1: Translation succeeds
-    if ! $PYTHON $TRANSLATOR "$domain_path" "$problem_path" -o "$output_path" 2>/dev/null; then
+    if ! python $TRANSLATOR "$domain_path" "$problem_path" -o "$output_path" 2>/dev/null; then
         echo "FAIL (translation error)"
         failed=$((failed + 1))
         continue
     fi
 
     # Test 2: Clingo can parse the output (use 1 solution, not 0 which enumerates all)
-    if ! $CLINGO $ENCODINGS $MEASURES "$output_path" 1 --warn=no-atom-undefined 2>&1 | grep -q "SATISFIABLE\|UNSATISFIABLE"; then
+    if ! clingo $ENCODINGS $MEASURES "$output_path" 1 --warn=no-atom-undefined 2>&1 | grep -q "SATISFIABLE\|UNSATISFIABLE"; then
         echo "FAIL (clingo parse error)"
         failed=$((failed + 1))
         continue
     fi
 
     # Test 3: Compute measures from translated PDDL
-    output=$($CLINGO $ENCODINGS $MEASURES "$output_path" 1 --warn=no-atom-undefined 2>&1)
+    output=$(clingo $ENCODINGS $MEASURES "$output_path" 1 --warn=no-atom-undefined 2>&1)
 
     if ! echo "$output" | grep -q "SATISFIABLE"; then
         echo "FAIL (not satisfiable)"
@@ -78,7 +76,7 @@ for test_case in "${test_cases[@]}"; do
     [[ -z "$ur_struct" ]] && ur_struct=0
 
     # Run brave reasoning for P2/P3
-    brave=$($CLINGO $ENCODINGS "$output_path" --enum-mode=brave 0 --warn=no-atom-undefined 2>&1)
+    brave=$(clingo $ENCODINGS "$output_path" --enum-mode=brave 0 --warn=no-atom-undefined 2>&1)
     compute_p2_p3_measures "$brave"
 
     actual="$ur_scope,$ur_struct,$mx_scope,$mx_struct,$gs_scope,$gs_struct"
@@ -113,7 +111,7 @@ for domain_file in tests/pddl/*/domain.pddl; do
 
     output_path="$SCRATCHPAD/${base}_syntax.lp"
 
-    if $PYTHON $TRANSLATOR "$domain_file" "$problem" -o "$output_path" 2>/dev/null; then
+    if python $TRANSLATOR "$domain_file" "$problem" -o "$output_path" 2>/dev/null; then
         # Verify output contains expected sections
         if grep -q "^init\|^goal\|^precond\|^add" "$output_path"; then
             echo "PASS"

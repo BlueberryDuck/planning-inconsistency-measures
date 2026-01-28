@@ -12,7 +12,6 @@ cd "$(dirname "$0")/.."
 # Source shared library
 source tools/lib/aggregate_witnesses.sh
 
-CLINGO=".venv/bin/clingo"
 ENCODINGS="encodings/planning.lp encodings/reachability.lp"
 MEASURES="encodings/measures/unreachability.lp encodings/measures/mutex.lp encodings/measures/sequencing.lp"
 
@@ -29,7 +28,7 @@ while IFS= read -r line; do
     printf "Testing %-20s " "$scenario..."
     
     # Run with all measures - unreachability is deterministic
-    output=$($CLINGO $ENCODINGS $MEASURES "tests/scenarios/${scenario}.lp" 1 --warn=no-atom-undefined 2>&1)
+    output=$(clingo $ENCODINGS $MEASURES "tests/scenarios/${scenario}.lp" 1 --warn=no-atom-undefined 2>&1)
     
     if ! echo "$output" | grep -q "SATISFIABLE"; then
         echo "ERROR: clingo failed"
@@ -44,7 +43,7 @@ while IFS= read -r line; do
     [[ -z "$ur_struct" ]] && ur_struct=0
     
     # For P2/P3, we need brave reasoning to aggregate witnesses
-    brave=$($CLINGO $ENCODINGS "tests/scenarios/${scenario}.lp" --enum-mode=brave 0 --warn=no-atom-undefined 2>&1)
+    brave=$(clingo $ENCODINGS "tests/scenarios/${scenario}.lp" --enum-mode=brave 0 --warn=no-atom-undefined 2>&1)
     
     # Compute P2/P3 measures using shared library
     compute_p2_p3_measures "$brave"
