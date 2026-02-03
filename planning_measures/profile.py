@@ -1,0 +1,92 @@
+"""
+MeasureProfile dataclass representing diagnostic results.
+"""
+
+from dataclasses import dataclass
+
+
+@dataclass(frozen=True)
+class MeasureProfile:
+    """
+    Diagnostic profile for a planning problem.
+
+    Contains six measures organized as three pairs (scope, struct):
+    - P1 Unreachability: Goals/propositions that cannot be reached
+    - P2 Mutex: Achievable goals that can never coexist
+    - P3 Sequencing: Goal pairs where achieving one blocks the other
+
+    Attributes:
+        ur_scope: Number of unreachable goals
+        ur_struct: Total unreachable propositions (reveals dependency depth)
+        mx_scope: Number of goals involved in mutex conflicts
+        mx_struct: Number of mutex pairs (unordered)
+        gs_scope: Number of goals involved in sequencing conflicts
+        gs_struct: Number of sequencing conflict pairs (ordered)
+    """
+
+    ur_scope: int
+    ur_struct: int
+    mx_scope: int
+    mx_struct: int
+    gs_scope: int
+    gs_struct: int
+
+    def as_tuple(self) -> tuple[int, int, int, int, int, int]:
+        """Return profile as a 6-tuple."""
+        return (
+            self.ur_scope,
+            self.ur_struct,
+            self.mx_scope,
+            self.mx_struct,
+            self.gs_scope,
+            self.gs_struct,
+        )
+
+    def __str__(self) -> str:
+        """Format as (ur_scope,ur_struct,mx_scope,mx_struct,gs_scope,gs_struct)."""
+        return f"({self.ur_scope},{self.ur_struct},{self.mx_scope},{self.mx_struct},{self.gs_scope},{self.gs_struct})"
+
+    @property
+    def category(self) -> str:
+        """
+        Classify the problem category based on measure values.
+
+        Returns one of:
+        - "2a": Unreachability detected
+        - "2c-sequencing": Sequencing conflicts (implies mutex)
+        - "2c-mutex": Only mutex conflicts (reversible)
+        - "consistent": No conflicts detected
+        """
+        if self.ur_scope > 0:
+            return "2a"
+        elif self.gs_scope > 0:
+            return "2c-sequencing"
+        elif self.mx_scope > 0:
+            return "2c-mutex"
+        else:
+            return "consistent"
+
+    @property
+    def is_consistent(self) -> bool:
+        """True if all measures are zero (no conflicts detected)."""
+        return self.as_tuple() == (0, 0, 0, 0, 0, 0)
+
+    def summary(self) -> str:
+        """Human-readable summary of the profile."""
+        lines = [
+            f"Profile: {self}",
+            f"Category: {self.category}",
+            "",
+            "P1 Unreachability:",
+            f"  - Unreachable goals: {self.ur_scope}",
+            f"  - Total unreachable propositions: {self.ur_struct}",
+            "",
+            "P2 Mutex:",
+            f"  - Goals in mutex: {self.mx_scope}",
+            f"  - Mutex pairs: {self.mx_struct}",
+            "",
+            "P3 Sequencing:",
+            f"  - Goals in sequencing conflicts: {self.gs_scope}",
+            f"  - Conflict pairs (ordered): {self.gs_struct}",
+        ]
+        return "\n".join(lines)

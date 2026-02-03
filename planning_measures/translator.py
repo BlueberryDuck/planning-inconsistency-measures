@@ -1,6 +1,5 @@
-#!/usr/bin/env python3
 """
-PDDL to ASP Translator for Thesis Planning Measures
+PDDL to ASP Translator
 
 Converts PDDL domain/problem files to the thesis ASP format:
   init(prop).
@@ -10,11 +9,10 @@ Converts PDDL domain/problem files to the thesis ASP format:
   delete(operator, prop).
 
 Usage:
-  python pddl_to_asp.py domain.pddl problem.pddl [-o output.lp]
+    from planning_measures import translate_pddl
+    asp_text = translate_pddl("domain.pddl", "problem.pddl")
 """
 
-import argparse
-import sys
 from itertools import product
 from pathlib import Path
 from typing import Iterator
@@ -300,50 +298,39 @@ def translate(domain: Domain, problem: Problem) -> str:
     return "\n".join(lines)
 
 
-def main():
-    parser = argparse.ArgumentParser(
-        description="Translate PDDL domain/problem to thesis ASP format"
-    )
-    parser.add_argument("domain", type=Path, help="PDDL domain file")
-    parser.add_argument("problem", type=Path, help="PDDL problem file")
-    parser.add_argument(
-        "-o", "--output", type=Path, help="Output file (default: stdout)"
-    )
-    parser.add_argument("-v", "--verbose", action="store_true", help="Print statistics")
+def translate_pddl(
+    domain_path: str | Path,
+    problem_path: str | Path,
+    output_path: str | Path | None = None,
+) -> str:
+    """
+    Translate PDDL files to thesis ASP format.
 
-    args = parser.parse_args()
+    Args:
+        domain_path: Path to PDDL domain file
+        problem_path: Path to PDDL problem file
+        output_path: Optional path to write output (if None, only returns string)
 
-    # Parse PDDL files
-    try:
-        domain = parse_domain(args.domain)
-        problem = parse_problem(args.problem)
-    except Exception as e:
-        print(f"Error parsing PDDL: {e}", file=sys.stderr)
-        sys.exit(1)
+    Returns:
+        The translated ASP string
 
-    # Translate
+    Raises:
+        FileNotFoundError: If domain or problem file doesn't exist
+    """
+    domain_path = Path(domain_path)
+    problem_path = Path(problem_path)
+
+    if not domain_path.exists():
+        raise FileNotFoundError(f"Domain file not found: {domain_path}")
+    if not problem_path.exists():
+        raise FileNotFoundError(f"Problem file not found: {problem_path}")
+
+    domain = parse_domain(domain_path)
+    problem = parse_problem(problem_path)
+
     output = translate(domain, problem)
 
-    # Write output
-    if args.output:
-        args.output.write_text(output)
-        if args.verbose:
-            print(f"Written to {args.output}", file=sys.stderr)
-    else:
-        print(output)
+    if output_path:
+        Path(output_path).write_text(output)
 
-    if args.verbose:
-        # Count statistics
-        n_init = output.count("init(")
-        n_goal = output.count("goal(")
-        n_precond = output.count("precond(")
-        n_add = output.count("add(")
-        n_delete = output.count("delete(")
-        print(
-            f"Stats: {n_init} init, {n_goal} goals, {n_precond} precond, {n_add} add, {n_delete} delete",
-            file=sys.stderr,
-        )
-
-
-if __name__ == "__main__":
-    main()
+    return output

@@ -64,7 +64,8 @@ Tests boundary conditions and solvable instances to ensure no false positives.
 
 ```
 tests/
-├── verify_measures.sh         # Test runner script
+├── test_measures.py           # pytest: measure computation
+├── test_translator.py         # pytest: PDDL translation
 ├── pddl/                      # PDDL versions of scenarios
 └── scenarios/
     ├── README.md              # This file
@@ -87,20 +88,23 @@ tests/
 ## Running Tests
 
 ```bash
-# From repository root - run all tests
-./tests/run_all_tests.sh
+# From repository root
+./run.sh pytest tests/ -v
 
-# Run only ASP scenario tests
-./tests/run_all_tests.sh measures
+# Run only measure tests
+./run.sh pytest tests/test_measures.py -v
+
+# Run with pattern matching
+./run.sh pytest tests/ -k "locked_door" -v
 ```
 
 Expected output:
 
 ```
-Testing p1_unreachability/locked_door... PASS (1,3,0,0,0,0)
-Testing p1_unreachability/bank_vault... PASS (1,7,0,0,0,0)
+tests/test_measures.py::TestMeasures::test_scenario[p1_unreachability/locked_door] PASSED
+tests/test_measures.py::TestMeasures::test_scenario[p1_unreachability/bank_vault] PASSED
 ...
-Results: 9 passed, 0 failed
+9 passed
 ```
 
 ## Adding New Scenarios
@@ -130,7 +134,7 @@ Results: 9 passed, 0 failed
 
 3. **Run verification**:
    ```bash
-   ./tests/verify_measures.sh
+   ./run.sh pytest tests/test_measures.py -v
    ```
 
 ## Scenario File Format

@@ -1,18 +1,10 @@
-FROM mambaorg/micromamba:1.5-jammy
+FROM python:3.12-slim
 
-# Install clingo and Python
-RUN micromamba install -y -n base -c conda-forge \
-    clingo=5.8.0 \
-    python=3.12 \
-    pip && \
-    micromamba clean --all --yes
-
-# Install Python dependencies
-COPY requirements.txt /tmp/requirements.txt
-RUN /opt/conda/bin/pip install --no-cache-dir -r /tmp/requirements.txt
-
-# Set working directory
 WORKDIR /workspace
+COPY pyproject.toml .
+COPY planning_measures/ planning_measures/
+COPY encodings/ encodings/
 
-# Default to bash for interactive use
+RUN pip install --no-cache-dir -e ".[dev]"
+
 CMD ["/bin/bash"]

@@ -1,102 +1,103 @@
-# Thesis Planning Measures
+# Planning Inconsistency Measures
 
-ASP implementation of planning inconsistency measures (P1-P3) for Master's thesis.
+ASP/Python implementation of diagnostic measures for classical planning problems.
 
 ## Overview
 
-This project implements three measures to quantify different types of goal conflicts in classical planning problems:
+Computes three measures that quantify goal conflicts in unsolvable planning problems:
 
-| Measure | Name                  | Description                                                         |
-| ------- | --------------------- | ------------------------------------------------------------------- |
-| P1      | I_UR (Unreachability) | Goals or propositions that cannot be reached from the initial state |
-| P2      | I_MX (Mutex)          | Achievable goals that can never coexist in any reachable state      |
-| P3      | I_GS (Sequencing)     | Goal pairs where achieving one prevents achieving another           |
+| Measure | Name           | Description                                     |
+| ------- | -------------- | ----------------------------------------------- |
+| P1      | Unreachability | Goals that cannot be reached                    |
+| P2      | Mutex          | Achievable goals that can never coexist         |
+| P3      | Sequencing     | Goal pairs where achieving one blocks the other |
 
-Each measure has two variants:
+Each measure has `scope` (goals involved) and `struct` (conflict count) variants.
 
-- **scope**: Number of goals involved in conflicts
-- **struct**: Number of conflicting pairs/propositions
-
-## Setup
-
-Requires Docker.
+## Installation
 
 ```bash
+# Docker (recommended)
 docker compose build
+
+# Or local install
+pip install -e ".[dev]"
 ```
 
-## Quick Start
+## Usage
+
+### Interactive Mode
 
 ```bash
-# Run measures on a scenario
-./run.sh clingo encodings/planning.lp encodings/reachability.lp \
-         encodings/measures/*.lp tests/scenarios/p1_unreachability/locked_door.lp 1
+python cli.py
+```
 
-# Run all tests (26 tests)
-./run.sh ./tests/run_all_tests.sh
+Provides a menu-driven interface for:
 
-# Run specific test suite
-./run.sh ./tests/run_all_tests.sh measures      # ASP scenario tests
-./run.sh ./tests/run_all_tests.sh translator    # PDDL translator tests
-./run.sh ./tests/run_all_tests.sh batch         # Batch translator tests
-./run.sh ./tests/run_all_tests.sh experiments   # Experiment runner tests
+- Computing measures for single problems
+- Running test scenarios
+- Batch processing directories
+- Translating PDDL files
 
-# Translate a PDDL problem
-./run.sh python tools/pddl_to_asp.py domain.pddl problem.pddl -o output.lp
+### Library API
 
-# Batch translate benchmarks
-./run.sh python tools/batch_translate.py ~/benchmarks/ipc2016 \
-         -o benchmarks/translated/ipc2016 -j 4
+```python
+from planning_measures import compute_measures, translate_pddl
 
-# Run experiments with 60s timeout
-./run.sh ./tools/run_experiments.sh benchmarks/translated experiments/results.csv 60
+# Compute measures from ASP problem
+profile = compute_measures("problem.lp", horizon=20)
+print(profile)           # (1,3,0,0,0,0)
+print(profile.category)  # "2a"
+print(profile.summary()) # Detailed breakdown
 
-# Interactive shell
-./run.sh
+# Translate PDDL to ASP
+asp_text = translate_pddl("domain.pddl", "problem.pddl")
+```
+
+### Running Tests
+
+```bash
+pytest tests/ -v
+```
+
+### PDDL Translation
+
+Use the interactive CLI (`python cli.py` → option 4) or the library API:
+
+```python
+from planning_measures import translate_pddl, batch_translate
+
+# Single file
+asp_text = translate_pddl("domain.pddl", "problem.pddl", "output.lp")
+
+# Batch translation
+batch_translate("~/benchmarks/ipc2016", "benchmarks/translated", workers=4)
 ```
 
 ## Project Structure
 
 ```
 thesis-planning-measures/
-├── config/
-│   └── defaults.lp              # Default constants (horizon=20)
+├── planning_measures/           # Library package
+│   ├── __init__.py              # Public API
+│   ├── measures.py              # Core computation
+│   ├── profile.py               # MeasureProfile dataclass
+│   ├── solver.py                # Clingo wrapper
+│   ├── translator.py            # PDDL to ASP translator
+│   └── batch_translator.py      # Batch PDDL translator
 ├── encodings/
 │   ├── planning.lp              # STRIPS problem representation
-│   ├── reachability.lp          # Forward reachability analysis
-│   └── measures/
-│       ├── unreachability.lp    # P1: unreachable goals
-│       ├── mutex.lp             # P2: mutex goal pairs
-│       └── sequencing.lp        # P3: sequencing conflicts
+│   ├── reachability.lp          # Forward reachability + witnesses
+│   └── measures.lp              # P1 computation (deterministic)
 ├── tests/
-│   ├── run_all_tests.sh         # Master test runner
-│   ├── test_measures.sh         # ASP scenario verification
-│   ├── test_translator.sh       # PDDL translator tests
-│   ├── test_batch_translate.sh  # Batch translator tests
-│   ├── test_experiment_runner.sh # Experiment runner tests
-│   ├── pddl/                    # PDDL test cases
-│   │   ├── locked_door/         # P1 test case
-│   │   └── trust_travel/        # Mixed test case
-│   └── scenarios/               # ASP test scenarios
-│       ├── expected_profiles.txt
-│       ├── p1_unreachability/
-│       ├── p2_mutex/
-│       ├── mixed/
-│       └── edge_cases/
-├── tools/
-│   ├── lib/
-│   │   └── aggregate_witnesses.sh   # Shared P2/P3 computation
-│   ├── pddl_to_asp.py           # PDDL -> thesis ASP translator
-│   ├── batch_translate.py       # Parallel batch translation
-│   ├── run_experiments.sh       # Benchmark runner (CSV output)
-│   ├── horizon_analysis.sh      # Horizon sensitivity testing
-│   └── verify_solvable.sh       # Phase 1 sanity check
-├── benchmarks/
-│   └── translated/              # Translated PDDL problems (generated)
-├── experiments/                 # Experiment results (CSV, markdown)
+│   ├── test_measures.py         # pytest: measure computation
+│   ├── test_translator.py       # pytest: PDDL translation
+│   ├── scenarios/               # ASP test scenarios
+│   └── pddl/                    # PDDL test cases
+├── cli.py                       # Interactive CLI
+├── pyproject.toml               # Project config & dependencies
 ├── Dockerfile                   # Container definition
-├── docker-compose.yml           # Container orchestration
-└── run.sh                       # Convenience wrapper
+└── docker-compose.yml           # Container orchestration
 ```
 
 ## Test Scenarios
@@ -113,90 +114,21 @@ thesis-planning-measures/
 | `edge_cases/single_goal`        | Edge     | (0,0,0,0,0,0)    | Trivial single goal                   |
 | `edge_cases/empty_goals`        | Edge     | (0,0,0,0,0,0)    | No goals defined                      |
 
-Profile format: `(I^scope_UR, I^struct_UR, I^scope_MX, I^struct_MX, I^scope_GS, I^struct_GS)`
+Profile format: `(ur_scope, ur_struct, mx_scope, mx_struct, gs_scope, gs_struct)`
 
-## Tools
+## Architecture
 
-### pddl_to_asp.py
+- **ASP Encodings** (`encodings/`): Compute reachability and generate witnesses
+- **Python Library** (`planning_measures/`): Aggregate witnesses into measures
+- **Interactive CLI** (`cli.py`): Menu-driven terminal interface
 
-Translates PDDL domain/problem pairs to the thesis ASP format.
-
-```bash
-./run.sh python tools/pddl_to_asp.py domain.pddl problem.pddl -o output.lp
-```
-
-### batch_translate.py
-
-Parallel batch translation of PDDL benchmarks. Handles common IPC directory structures.
-
-```bash
-./run.sh python tools/batch_translate.py ~/benchmarks/ipc2016 \
-         -o benchmarks/translated -j 4 --verbose
-
-# Preview without translating
-./run.sh python tools/batch_translate.py ~/benchmarks/ipc2016 --dry-run
-```
-
-### run_experiments.sh
-
-Runs measures on all translated problems, producing CSV output with:
-
-- Domain and problem names
-- All six measure values (scope and struct for P1-P3)
-- Category classification (2a, 2c-mutex, 2c-sequencing, undetected)
-- Runtime and status
-
-```bash
-./tools/run_experiments.sh benchmarks/translated experiments/results.csv 60
-```
-
-### horizon_analysis.sh
-
-Tests horizon sensitivity on solvable instances to determine appropriate horizon values.
-
-```bash
-./tools/horizon_analysis.sh benchmarks/translated experiments/horizon_analysis.csv
-```
-
-### verify_solvable.sh
-
-Phase 1 verification: ensures all solvable instances (`*satprob*.lp`) have zero measures.
-
-```bash
-./tools/verify_solvable.sh benchmarks/translated/ipc2016
-# Outputs: experiments/phase1_verification.md
-```
+P1 is computed deterministically in ASP. P2 and P3 use brave reasoning to collect
+witnesses across all answer sets, then Python computes set differences.
 
 ## Configuration
 
-Default constants are defined in `config/defaults.lp`:
+Default horizon is 20 steps. Override via:
 
-```asp
-#const horizon = 20.
+```python
+profile = compute_measures("problem.lp", horizon=100)
 ```
-
-Override via command line:
-
-```bash
-./run.sh clingo ... -c horizon=100
-```
-
-## Technical Notes
-
-### Measure Computation
-
-- **P1 (Unreachability)**: Computed deterministically in a single answer set using forward reachability fixpoint.
-- **P2 (Mutex) & P3 (Sequencing)**: Require brave reasoning (`--enum-mode=brave`) to aggregate witnesses across all answer sets. The shell scripts handle this automatically.
-
-### Horizon Parameter
-
-The `horizon` constant limits state-space exploration depth. If measures report false positives on known-solvable instances, increase the horizon. The `horizon_analysis.sh` script helps determine appropriate values.
-
-### Category Classification
-
-The experiment runner classifies problems into categories based on detected conflicts:
-
-- **2a**: Unreachability detected (I_UR > 0)
-- **2c-sequencing**: Sequencing conflicts detected (I_GS > 0, I_UR = 0)
-- **2c-mutex**: Only mutex conflicts detected (I_MX > 0, I_UR = I_GS = 0)
-- **undetected**: No conflicts found (all measures zero)

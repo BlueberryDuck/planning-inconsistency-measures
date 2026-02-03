@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Batch PDDL to ASP Translator
 
@@ -6,21 +5,18 @@ Traverses benchmark directories and translates all domain/problem pairs
 to thesis ASP format in parallel.
 
 Usage:
-  python batch_translate.py <benchmark_dir> [-o output_dir] [-j workers]
-
-Example:
-  python batch_translate.py ~/benchmarks/ipc2016 -o benchmarks/translated/ipc2016 -j 4
+    from planning_measures import batch_translate
+    batch_translate("~/benchmarks", "output/", workers=4)
 """
 
-import argparse
 import re
 import sys
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 
-# Import translator from same package
-from pddl_to_asp import translate
 from pddl import parse_domain, parse_problem
+
+from .translator import translate
 
 
 def find_pddl_pairs(benchmark_dir: Path) -> list[tuple[Path, Path, str]]:
@@ -91,7 +87,7 @@ def find_pddl_pairs(benchmark_dir: Path) -> list[tuple[Path, Path, str]]:
     return pairs
 
 
-def translate_pair(args: tuple[Path, Path, Path]) -> tuple[str, bool, str]:
+def _translate_pair(args: tuple[Path, Path, Path]) -> tuple[str, bool, str]:
     """
     Translate a single domain/problem pair.
 
@@ -113,66 +109,52 @@ def translate_pair(args: tuple[Path, Path, Path]) -> tuple[str, bool, str]:
         return (output_file.name if output_file else str(problem_file), False, str(e))
 
 
-def main():
-    parser = argparse.ArgumentParser(
-        description="Batch translate PDDL benchmarks to thesis ASP format"
-    )
-    parser.add_argument(
-        "benchmark_dir", type=Path, help="Directory containing PDDL benchmarks"
-    )
-    parser.add_argument(
-        "-o",
-        "--output",
-        type=Path,
-        default=Path("benchmarks/translated"),
-        help="Output directory (default: benchmarks/translated)",
-    )
-    parser.add_argument(
-        "-j",
-        "--workers",
-        type=int,
-        default=4,
-        help="Number of parallel workers (default: 4)",
-    )
-    parser.add_argument("-v", "--verbose", action="store_true", help="Verbose output")
-    parser.add_argument(
-        "--dry-run",
-        action="store_true",
-        help="Show what would be translated without doing it",
-    )
+def batch_translate(
+    benchmark_dir: str | Path,
+    output_dir: str | Path = "benchmarks/translated",
+    workers: int = 4,
+    verbose: bool = False,
+    dry_run: bool = False,
+) -> tuple[int, int]:
+    """
+    Batch translate PDDL benchmarks to thesis ASP format.
 
-    args = parser.parse_args()
+    Args:
+        benchmark_dir: Directory containing PDDL benchmarks
+        output_dir: Output directory for translated files
+        workers: Number of parallel workers
+        verbose: Print progress
+        dry_run: Show what would be translated without doing it
 
-    if not args.benchmark_dir.exists():
-        print(
-            f"Error: Benchmark directory not found: {args.benchmark_dir}",
-            file=sys.stderr,
-        )
-        sys.exit(1)
+    Returns:
+        Tuple of (success_count, fail_count)
+    """
+    benchmark_dir = Path(benchmark_dir)
+    output_dir = Path(output_dir)
+
+    if not benchmark_dir.exists():
+        raise FileNotFoundError(f"Benchmark directory not found: {benchmark_dir}")
 
     # Find all PDDL pairs
-    pairs = find_pddl_pairs(args.benchmark_dir)
+    pairs = find_pddl_pairs(benchmark_dir)
 
     if not pairs:
-        print(
-            f"No PDDL domain/problem pairs found in {args.benchmark_dir}",
-            file=sys.stderr,
-        )
-        sys.exit(1)
+        raise ValueError(f"No PDDL domain/problem pairs found in {benchmark_dir}")
 
-    print(f"Found {len(pairs)} PDDL problem(s) to translate")
+    if verbose:
+        print(f"Found {len(pairs)} PDDL problem(s) to translate")
 
-    if args.dry_run:
+    if dry_run:
         for domain, problem, output_name in pairs:
-            print(f"  {problem.relative_to(args.benchmark_dir)} -> {output_name}")
-        sys.exit(0)
+            print(f"  {problem.relative_to(benchmark_dir)} -> {output_name}")
+        return (0, 0)
 
     # Create output directory
-    args.output.mkdir(parents=True, exist_ok=True)
+    output_dir.mkdir(parents=True, exist_ok=True)
 
     # Prepare translation tasks
     tasks = [
-        (domain, problem, args.output / output_name)
+        (domain, problem, output_dir / output_name)
         for domain, problem, output_name in pairs
     ]
 
@@ -180,24 +162,22 @@ def main():
     success_count = 0
     fail_count = 0
 
-    with ProcessPoolExecutor(max_workers=args.workers) as executor:
-        futures = {executor.submit(translate_pair, task): task for task in tasks}
+    with ProcessPoolExecutor(max_workers=workers) as executor:
+        futures = {executor.submit(_translate_pair, task): task for task in tasks}
 
         for future in as_completed(futures):
             name, success, message = future.result()
             if success:
                 success_count += 1
-                if args.verbose:
+                if verbose:
                     print(f"  OK: {name}")
             else:
                 fail_count += 1
-                print(f"  FAIL: {name}: {message}", file=sys.stderr)
+                if verbose:
+                    print(f"  FAIL: {name}: {message}", file=sys.stderr)
 
-    print(f"\nResults: {success_count} translated, {fail_count} failed")
-    print(f"Output: {args.output}")
+    if verbose:
+        print(f"\nResults: {success_count} translated, {fail_count} failed")
+        print(f"Output: {output_dir}")
 
-    sys.exit(1 if fail_count > 0 else 0)
-
-
-if __name__ == "__main__":
-    main()
+    return (success_count, fail_count)

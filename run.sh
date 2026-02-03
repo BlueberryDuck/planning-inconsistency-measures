@@ -1,10 +1,10 @@
 #!/bin/bash
-# Convenience wrapper for running commands in the Docker container
+# Run commands in the Docker container
 #
 # Usage:
-#   ./run.sh                           # Interactive shell
-#   ./run.sh ./tests/run_all_tests.sh  # Run tests
-#   ./run.sh clingo --version          # Run clingo
+#   ./run.sh                    # Interactive shell
+#   ./run.sh pytest tests/ -v   # Run tests
+#   ./run.sh python cli.py      # Interactive CLI
 
 cd "$(dirname "$0")"
 docker compose run --rm thesis "$@"
