@@ -22,3 +22,4 @@ from .translator import translate_pddl
 from .batch_translator import batch_translate
 
 __all__ = ["MeasureProfile", "compute_measures", "translate_pddl", "batch_translate"]
+__version__ = "1.0.0"
