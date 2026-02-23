@@ -2,15 +2,20 @@
 Core measure computation.
 
 This module implements the three diagnostic measures:
-- P1: Unreachability (computed deterministically in ASP)
+- P1: Unreachability (computed from true reachability via brave reasoning)
 - P2: Mutex (computed from brave reasoning witnesses)
 - P3: Sequencing (computed from brave reasoning witnesses)
+
+All measures are derived from the brave reasoning pass, which explores
+the actual state space with delete effects. The delete-relaxed fixpoint
+in Part 1 of reachability.lp is retained as a fast screening predicate
+but is not used for measure values.
 """
 
 from pathlib import Path
 
 from .profile import MeasureProfile
-from .solver import solve_deterministic, solve_brave
+from .solver import solve_brave
 
 
 def compute_measures(problem_path: Path | str, horizon: int = 20) -> MeasureProfile:
@@ -44,21 +49,29 @@ def compute_measures(problem_path: Path | str, horizon: int = 20) -> MeasureProf
     if not problem_path.exists():
         raise FileNotFoundError(f"Problem file not found: {problem_path}")
 
-    # Phase 1: Deterministic solving for P1 and base facts
-    p1_data = _collect_deterministic(problem_path, horizon)
+    # Single brave reasoning pass provides all data
+    data = _collect_brave(problem_path, horizon)
 
-    # Phase 2: Brave reasoning for P2/P3 witnesses
-    witnesses = _collect_witnesses(problem_path, horizon)
+    # P1: Unreachability from true reachability
+    goals = data["goals"]
+    props = data["props"]
+    truly_reachable = data["true_reachable"]
 
-    # Phase 3: Compute P2/P3 from witnesses
-    achievable_goals = p1_data["goals"] & p1_data["reachable"]
+    unreachable_goals = goals - truly_reachable
+    unreachable_props = props - truly_reachable
 
-    mx_scope, mx_struct = _compute_mutex(achievable_goals, witnesses["coexist"])
-    gs_scope, gs_struct = _compute_sequencing(achievable_goals, witnesses["g2_after_g1"])
+    ur_scope = len(unreachable_goals)
+    ur_struct = len(unreachable_props)
+
+    # P2/P3: Mutex and sequencing from witnesses
+    achievable_goals = goals & truly_reachable
+
+    mx_scope, mx_struct = _compute_mutex(achievable_goals, data["coexist"])
+    gs_scope, gs_struct = _compute_sequencing(achievable_goals, data["g2_after_g1"])
 
     return MeasureProfile(
-        ur_scope=p1_data["ur_scope"],
-        ur_struct=p1_data["ur_struct"],
+        ur_scope=ur_scope,
+        ur_struct=ur_struct,
         mx_scope=mx_scope,
         mx_struct=mx_struct,
         gs_scope=gs_scope,
@@ -66,54 +79,38 @@ def compute_measures(problem_path: Path | str, horizon: int = 20) -> MeasureProf
     )
 
 
-def _collect_deterministic(problem_path: Path, horizon: int) -> dict:
-    """Collect P1 measures and base facts from deterministic solving."""
+def _collect_brave(problem_path: Path, horizon: int) -> dict:
+    """Collect all measure data from a single brave reasoning pass."""
     data = {
         "goals": set(),
-        "reachable": set(),
-        "ur_scope": 0,
-        "ur_struct": 0,
+        "props": set(),
+        "true_reachable": set(),
+        "coexist": set(),
+        "g2_after_g1": set(),
     }
 
     def on_atom(name: str, args: tuple):
         if name == "goal" and len(args) == 1:
             data["goals"].add(args[0])
-        elif name == "reachable_prop" and len(args) == 1:
-            data["reachable"].add(args[0])
-        elif name == "i_ur_scope" and len(args) == 1:
-            data["ur_scope"] = args[0]
-        elif name == "i_ur_struct" and len(args) == 1:
-            data["ur_struct"] = args[0]
+        elif name == "prop" and len(args) == 1:
+            data["props"].add(args[0])
+        elif name == "true_reachable" and len(args) == 1:
+            data["true_reachable"].add(args[0])
+        elif name == "coexist_witness" and len(args) == 2:
+            g1, g2 = args
+            data["coexist"].add((g1, g2))
+            data["coexist"].add((g2, g1))
+        elif name == "g2_after_g1_witness" and len(args) == 2:
+            data["g2_after_g1"].add(args)
 
-    if not solve_deterministic(problem_path, horizon, on_atom):
+    if not solve_brave(problem_path, horizon, on_atom):
         raise RuntimeError(f"ASP solving failed for {problem_path}")
 
     return data
 
 
-def _collect_witnesses(problem_path: Path, horizon: int) -> dict:
-    """Collect P2/P3 witnesses from brave reasoning."""
-    witnesses = {
-        "coexist": set(),      # (g1, g2) pairs that coexist somewhere
-        "g2_after_g1": set(),  # (g1, g2) pairs where g2 reachable after g1
-    }
-
-    def on_atom(name: str, args: tuple):
-        if name == "coexist_witness" and len(args) == 2:
-            g1, g2 = args
-            # Store both orderings for easier lookup
-            witnesses["coexist"].add((g1, g2))
-            witnesses["coexist"].add((g2, g1))
-        elif name == "g2_after_g1_witness" and len(args) == 2:
-            witnesses["g2_after_g1"].add(args)
-
-    solve_brave(problem_path, horizon, on_atom)
-    return witnesses
-
-
 def _compute_mutex(
-    achievable_goals: set[str],
-    coexist_witnesses: set[tuple[str, str]]
+    achievable_goals: set[str], coexist_witnesses: set[tuple[str, str]]
 ) -> tuple[int, int]:
     """
     Compute P2 mutex measures.
@@ -126,7 +123,7 @@ def _compute_mutex(
 
     goals = sorted(achievable_goals)
     for i, g1 in enumerate(goals):
-        for g2 in goals[i + 1:]:  # Unordered pairs: g1 < g2
+        for g2 in goals[i + 1 :]:
             if (g1, g2) not in coexist_witnesses:
                 mutex_pairs.add((g1, g2))
                 goals_in_mutex.add(g1)
@@ -136,8 +133,7 @@ def _compute_mutex(
 
 
 def _compute_sequencing(
-    achievable_goals: set[str],
-    g2_after_g1_witnesses: set[tuple[str, str]]
+    achievable_goals: set[str], g2_after_g1_witnesses: set[tuple[str, str]]
 ) -> tuple[int, int]:
     """
     Compute P3 sequencing conflict measures.

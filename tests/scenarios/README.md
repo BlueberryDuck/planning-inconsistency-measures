@@ -15,6 +15,7 @@ Hand-crafted ASP scenarios for verifying the planning inconsistency measures (P1
 | `edge_cases/coexisting_goals`   | Edge     | (0,0,0,0,0,0)    | Solvable - no conflicts               |
 | `edge_cases/single_goal`        | Edge     | (0,0,0,0,0,0)    | Trivial single goal                   |
 | `edge_cases/empty_goals`        | Edge     | (0,0,0,0,0,0)    | No goals defined                      |
+| `edge_cases/delete_relaxation`  | Edge     | (1,1,0,0,0,0)    | Delete effects block reachability     |
 
 ## Profile Format
 
@@ -57,8 +58,9 @@ Tests cases with both mutex and sequencing conflicts, demonstrating that differe
 Tests boundary conditions and solvable instances to ensure no false positives.
 
 - **coexisting_goals**: Multiple goals that can all be achieved together
-- **single_goal**: Degenerate case with only one goal (no pairs to conflict)
+- **delete_relaxation**: Delete effects prevent preconditions from coexisting
 - **empty_goals**: No goals defined (vacuously consistent)
+- **single_goal**: Degenerate case with only one goal (no pairs to conflict)
 
 ## Directory Structure
 
@@ -69,7 +71,6 @@ tests/
 ├── pddl/                      # PDDL versions of scenarios
 └── scenarios/
     ├── README.md              # This file
-    ├── expected_profiles.txt  # Machine-readable expected values
     ├── p1_unreachability/     # Pure unreachability conflicts
     │   ├── locked_door.lp
     │   └── bank_vault.lp
@@ -81,8 +82,9 @@ tests/
     │   └── rival_alliances.lp
     └── edge_cases/            # Zero-measure and trivial cases
         ├── coexisting_goals.lp
-        ├── single_goal.lp
-        └── empty_goals.lp
+        ├── delete_relaxation.lp
+        ├── empty_goals.lp
+        └── single_goal.lp
 ```
 
 ## Running Tests
@@ -126,10 +128,10 @@ tests/test_measures.py::TestMeasures::test_scenario[p1_unreachability/bank_vault
    add(my_action, target_prop).
    ```
 
-2. **Add expected profile** to `expected_profiles.txt`:
+2. **Add expected profile** to the `EXPECTED` dict in `tests/test_measures.py`:
 
-   ```
-   p1_unreachability/my_scenario: (1, 2, 0, 0, 0, 0)
+   ```python
+   "p1_unreachability/my_scenario": (1, 2, 0, 0, 0, 0),
    ```
 
 3. **Run verification**:

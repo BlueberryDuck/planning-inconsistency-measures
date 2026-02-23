@@ -24,6 +24,7 @@ EXPECTED = {
     "edge_cases/coexisting_goals": (0, 0, 0, 0, 0, 0),
     "edge_cases/single_goal": (0, 0, 0, 0, 0, 0),
     "edge_cases/empty_goals": (0, 0, 0, 0, 0, 0),
+    "edge_cases/delete_relaxation": (1, 1, 0, 0, 0, 0),
 }
 
 
@@ -103,4 +104,17 @@ class TestMeasureHierarchy:
         """Mutex without sequencing means reversible conflicts."""
         profile = compute_measures(SCENARIOS_DIR / "p2_mutex/light_switch.lp")
         assert profile.mx_scope > 0
+        assert profile.gs_scope == 0
+
+    def test_delete_effects_block_reachability(self):
+        """Delete effects must prevent false reachability claims.
+
+        Regression test: the delete-relaxed fixpoint marks c as reachable
+        because a and b are individually reachable. But {a,b} never coexist
+        due to o1 deleting a, so o2 is never applicable and c is unreachable.
+        """
+        profile = compute_measures(SCENARIOS_DIR / "edge_cases/delete_relaxation.lp")
+        assert profile.ur_scope == 1  # c is unreachable
+        assert profile.ur_struct == 1  # only c is unreachable (a, b both reachable)
+        assert profile.mx_scope == 0  # no achievable goals to be mutex
         assert profile.gs_scope == 0
