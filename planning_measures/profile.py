@@ -17,7 +17,7 @@ class MeasureProfile:
 
     Attributes:
         ur_scope: Number of unreachable goals
-        ur_struct: Total unreachable propositions (reveals dependency depth)
+        ur_struct: Total unreachable propositions
         mx_scope: Number of goals involved in mutex conflicts
         mx_struct: Number of mutex pairs (unordered)
         gs_scope: Number of goals involved in sequencing conflicts

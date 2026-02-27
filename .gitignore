@@ -10,5 +10,5 @@ __pycache__/
 .venv/
 
 # Generated
-benchmarks/translated/
 experiments/
+results*.csv

@@ -3,23 +3,18 @@ Planning Inconsistency Measures
 
 A library for computing diagnostic measures on classical planning problems.
 
-Usage:
+Usage with pre-translated ASP files:
     from planning_measures import compute_measures, MeasureProfile
 
     profile = compute_measures("problem.lp")
     print(profile.ur_scope)  # Unreachable goals count
 
-PDDL Translation:
-    from planning_measures import translate_pddl, batch_translate
-
-    asp_text = translate_pddl("domain.pddl", "problem.pddl")
-    batch_translate("benchmarks/", "output/", workers=4)
+Usage with PDDL files (requires plasp):
+    profile = compute_measures("problem.pddl", domain_path="domain.pddl")
 """
 
 from .profile import MeasureProfile
 from .measures import compute_measures
-from .translator import translate_pddl
-from .batch_translator import batch_translate
 
-__all__ = ["MeasureProfile", "compute_measures", "translate_pddl", "batch_translate"]
-__version__ = "1.0.0"
+__all__ = ["MeasureProfile", "compute_measures"]
+__version__ = "2.0.0"

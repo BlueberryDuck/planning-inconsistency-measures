@@ -6,53 +6,118 @@ This module implements the three diagnostic measures:
 - P2: Mutex (computed from brave reasoning witnesses)
 - P3: Sequencing (computed from brave reasoning witnesses)
 
-All measures are derived from the brave reasoning pass, which explores
-the actual state space with delete effects. The delete-relaxed fixpoint
-in Part 1 of reachability.lp is retained as a fast screening predicate
-but is not used for measure values.
+All measures are derived from a single brave reasoning pass, which
+explores the actual state space with delete effects up to a bounded
+horizon.
 """
 
+import logging
+import shutil
+import subprocess
+import tempfile
+from collections.abc import Callable
 from pathlib import Path
 
+from .pddl_preprocessor import strip_costs
 from .profile import MeasureProfile
 from .solver import solve_brave
 
+logger = logging.getLogger(__name__)
 
-def compute_measures(problem_path: Path | str, horizon: int = 20) -> MeasureProfile:
+
+def compute_measures(
+    problem_path: Path | str,
+    horizon: int = 20,
+    domain_path: Path | str | None = None,
+) -> MeasureProfile:
     """
     Compute all six inconsistency measures for a planning problem.
 
-    This is the main entry point for the library.
+    This is the main entry point for the library. Accepts either:
+    - A pre-translated .lp file (legacy mode, for test scenarios)
+    - PDDL domain + problem files (uses plasp for translation)
 
     Args:
-        problem_path: Path to .lp file containing the planning problem
-                      (init/1, goal/1, precond/2, add/2, delete/2 facts)
+        problem_path: Path to .lp file (if domain_path is None) or
+                      PDDL problem file (if domain_path is provided)
         horizon: Maximum steps for state space exploration.
                  Increase if solvable problems show non-zero measures.
                  Default: 20
+        domain_path: Path to PDDL domain file. When provided, plasp
+                     is used to translate PDDL to ASP.
 
     Returns:
         MeasureProfile containing all six measure values
 
     Raises:
-        FileNotFoundError: If problem_path doesn't exist
-        RuntimeError: If ASP solving fails
-
-    Example:
-        >>> profile = compute_measures("problem.lp")
-        >>> print(profile)
-        (1,3,0,0,0,0)
-        >>> print(profile.category)
-        "2a"
+        FileNotFoundError: If any input file doesn't exist
+        RuntimeError: If ASP solving or plasp translation fails
     """
     problem_path = Path(problem_path)
     if not problem_path.exists():
         raise FileNotFoundError(f"Problem file not found: {problem_path}")
 
-    # Single brave reasoning pass provides all data
-    data = _collect_brave(problem_path, horizon)
+    logger.info("Computing measures for %s (horizon=%d)", problem_path.name, horizon)
 
-    # P1: Unreachability from true reachability
+    if domain_path is not None:
+        # PDDL mode: preprocess and translate via plasp
+        domain_path = Path(domain_path)
+        if not domain_path.exists():
+            raise FileNotFoundError(f"Domain file not found: {domain_path}")
+
+        problem_path, use_bridge, cleanup = _translate_pddl(domain_path, problem_path)
+    else:
+        # ASP mode: use pre-translated .lp file directly
+        use_bridge = False
+        cleanup = None
+
+    try:
+        data = _collect_brave(problem_path, horizon, use_bridge)
+    finally:
+        if cleanup is not None:
+            cleanup()
+
+    profile = _measures_from_data(data)
+    logger.debug("Result: %s (category=%s)", profile, profile.category)
+    return profile
+
+
+def _translate_pddl(
+    domain_path: Path, problem_path: Path
+) -> tuple[Path, bool, Callable]:
+    """Translate PDDL to ASP via plasp. Returns (lp_path, use_bridge, cleanup_fn)."""
+    logger.info("Translating PDDL via plasp: %s + %s", domain_path.name, problem_path.name)
+    domain_text = strip_costs(domain_path.read_text())
+    problem_text = strip_costs(problem_path.read_text())
+
+    tmpdir = tempfile.mkdtemp()
+    tmp = Path(tmpdir)
+    (tmp / "domain.pddl").write_text(domain_text)
+    (tmp / "problem.pddl").write_text(problem_text)
+
+    result = subprocess.run(
+        ["plasp", "translate", str(tmp / "domain.pddl"), str(tmp / "problem.pddl")],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        shutil.rmtree(tmpdir)
+        raise RuntimeError(
+            f"plasp translation failed for {domain_path} + {problem_path}: "
+            f"{result.stderr.strip()}"
+        )
+
+    plasp_lp = tmp / "instance.lp"
+    plasp_lp.write_text(result.stdout)
+
+    def cleanup():
+        shutil.rmtree(tmpdir, ignore_errors=True)
+
+    return plasp_lp, True, cleanup
+
+
+def _measures_from_data(data: dict) -> MeasureProfile:
+    """Compute MeasureProfile from collected brave reasoning data."""
     goals = data["goals"]
     props = data["props"]
     truly_reachable = data["true_reachable"]
@@ -63,7 +128,6 @@ def compute_measures(problem_path: Path | str, horizon: int = 20) -> MeasureProf
     ur_scope = len(unreachable_goals)
     ur_struct = len(unreachable_props)
 
-    # P2/P3: Mutex and sequencing from witnesses
     achievable_goals = goals & truly_reachable
 
     mx_scope, mx_struct = _compute_mutex(achievable_goals, data["coexist"])
@@ -79,7 +143,7 @@ def compute_measures(problem_path: Path | str, horizon: int = 20) -> MeasureProf
     )
 
 
-def _collect_brave(problem_path: Path, horizon: int) -> dict:
+def _collect_brave(problem_path: Path, horizon: int, use_bridge: bool) -> dict:
     """Collect all measure data from a single brave reasoning pass."""
     data = {
         "goals": set(),
@@ -103,9 +167,17 @@ def _collect_brave(problem_path: Path, horizon: int) -> dict:
         elif name == "g2_after_g1_witness" and len(args) == 2:
             data["g2_after_g1"].add(args)
 
-    if not solve_brave(problem_path, horizon, on_atom):
+    if not solve_brave(problem_path, horizon, on_atom, use_bridge=use_bridge):
         raise RuntimeError(f"ASP solving failed for {problem_path}")
 
+    logger.debug(
+        "Brave data: %d goals, %d props, %d reachable, %d coexist, %d g2_after_g1",
+        len(data["goals"]),
+        len(data["props"]),
+        len(data["true_reachable"]),
+        len(data["coexist"]),
+        len(data["g2_after_g1"]),
+    )
     return data
 
 

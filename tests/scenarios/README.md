@@ -4,31 +4,35 @@ Hand-crafted ASP scenarios for verifying the planning inconsistency measures (P1
 
 ## Scenario Index
 
-| Scenario                        | Category | Expected Profile | Description                           |
-| ------------------------------- | -------- | ---------------- | ------------------------------------- |
-| `p1_unreachability/locked_door` | P1       | (1,3,0,0,0,0)    | Goal blocked by missing prerequisite  |
-| `p1_unreachability/bank_vault`  | P1       | (1,7,0,0,0,0)    | Chain with multiple unreachable props |
-| `p2_mutex/light_switch`         | P2       | (0,0,2,1,0,0)    | Reversible toggle creates mutex       |
-| `p2_mutex/traffic_light`        | P2       | (0,0,3,3,0,0)    | Three-way mutex clique                |
-| `mixed/trust_travel`            | Mixed    | (0,0,2,1,2,1)    | Asymmetric sequencing conflict        |
-| `mixed/rival_alliances`         | Mixed    | (0,0,2,1,2,2)    | Two sequencing conflicts              |
-| `edge_cases/coexisting_goals`   | Edge     | (0,0,0,0,0,0)    | Solvable - no conflicts               |
-| `edge_cases/single_goal`        | Edge     | (0,0,0,0,0,0)    | Trivial single goal                   |
-| `edge_cases/empty_goals`        | Edge     | (0,0,0,0,0,0)    | No goals defined                      |
-| `edge_cases/delete_relaxation`  | Edge     | (1,1,0,0,0,0)    | Delete effects block reachability     |
+| Scenario                           | Category | Expected Profile | Description                           |
+| ---------------------------------- | -------- | ---------------- | ------------------------------------- |
+| `p1_unreachability/locked_door`    | P1       | (1,3,0,0,0,0)    | Goal blocked by missing prerequisite  |
+| `p1_unreachability/bank_vault`     | P1       | (1,7,0,0,0,0)    | Chain with multiple unreachable props |
+| `p2_mutex/light_switch`            | P2       | (0,0,2,1,0,0)    | Reversible toggle creates mutex       |
+| `p2_mutex/traffic_light`           | P2       | (0,0,3,3,0,0)    | Three-way mutex clique                |
+| `mixed/trust_travel`               | Mixed    | (0,0,2,1,2,1)    | Asymmetric sequencing conflict        |
+| `mixed/rival_alliances`            | Mixed    | (0,0,2,1,2,2)    | Two sequencing conflicts              |
+| `edge_cases/coexisting_goals`      | Edge     | (0,0,0,0,0,0)    | Solvable - no conflicts               |
+| `edge_cases/delete_relaxation`     | Edge     | (1,1,0,0,0,0)    | Delete effects block reachability     |
+| `edge_cases/empty_goals`           | Edge     | (0,0,0,0,0,0)    | No goals defined                      |
+| `edge_cases/horizon_sensitive`     | Edge     | (0,0,0,0,0,0)\*  | Chain requires sufficient horizon     |
+| `edge_cases/negative_precondition` | Edge     | (1,1,0,0,0,0)    | Negative precondition blocks operator |
+| `edge_cases/single_goal`           | Edge     | (0,0,0,0,0,0)    | Trivial single goal                   |
+
+\*At default horizon=20. At horizon=2: `(1,1,0,0,0,0)` (insufficient depth).
 
 ## Profile Format
 
 `(I^scope_UR, I^struct_UR, I^scope_MX, I^struct_MX, I^scope_GS, I^struct_GS)`
 
-| Component   | Measure           | Meaning                                                 |
-| ----------- | ----------------- | ------------------------------------------------------- |
-| I^scope_UR  | P1 Unreachability | Number of goals that are unreachable                    |
-| I^struct_UR | P1 Unreachability | Number of propositions in unreachable dependency chains |
-| I^scope_MX  | P2 Mutex          | Number of goals involved in mutex conflicts             |
-| I^struct_MX | P2 Mutex          | Number of mutex pairs                                   |
-| I^scope_GS  | P3 Sequencing     | Number of goals involved in sequencing conflicts        |
-| I^struct_GS | P3 Sequencing     | Number of ordered pairs with sequencing conflicts       |
+| Component   | Measure           | Meaning                                           |
+| ----------- | ----------------- | ------------------------------------------------- |
+| I^scope_UR  | P1 Unreachability | Number of goals that are unreachable              |
+| I^struct_UR | P1 Unreachability | Total number of unreachable propositions          |
+| I^scope_MX  | P2 Mutex          | Number of goals involved in mutex conflicts       |
+| I^struct_MX | P2 Mutex          | Number of mutex pairs                             |
+| I^scope_GS  | P3 Sequencing     | Number of goals involved in sequencing conflicts  |
+| I^struct_GS | P3 Sequencing     | Number of ordered pairs with sequencing conflicts |
 
 ## Category Descriptions
 
@@ -60,14 +64,16 @@ Tests boundary conditions and solvable instances to ensure no false positives.
 - **coexisting_goals**: Multiple goals that can all be achieved together
 - **delete_relaxation**: Delete effects prevent preconditions from coexisting
 - **empty_goals**: No goals defined (vacuously consistent)
+- **horizon_sensitive**: Goal requires 3 steps; tests that insufficient horizon reports false unreachability
+- **negative_precondition**: Operator blocked by `neg_precond` when proposition holds
 - **single_goal**: Degenerate case with only one goal (no pairs to conflict)
 
 ## Directory Structure
 
 ```
 tests/
-├── test_measures.py           # pytest: measure computation
-├── test_translator.py         # pytest: PDDL translation
+├── test_measures.py           # pytest: measure computation + hierarchy
+├── test_plasp.py              # pytest: plasp pipeline + preprocessor
 ├── pddl/                      # PDDL versions of scenarios
 └── scenarios/
     ├── README.md              # This file
@@ -84,7 +90,10 @@ tests/
         ├── coexisting_goals.lp
         ├── delete_relaxation.lp
         ├── empty_goals.lp
-        └── single_goal.lp
+        ├── horizon_sensitive.lp
+        ├── negative_precondition.lp
+        ├── single_goal.lp
+        └── unsatisfiable.lp
 ```
 
 ## Running Tests
@@ -103,10 +112,10 @@ tests/
 Expected output:
 
 ```
-tests/test_measures.py::TestMeasures::test_scenario[p1_unreachability/locked_door] PASSED
-tests/test_measures.py::TestMeasures::test_scenario[p1_unreachability/bank_vault] PASSED
+tests/test_measures.py::test_scenario_profile[p1_unreachability/locked_door-expected0] PASSED
+tests/test_measures.py::test_scenario_profile[p1_unreachability/bank_vault-expected1] PASSED
 ...
-9 passed
+36 passed
 ```
 
 ## Adding New Scenarios
@@ -143,11 +152,12 @@ tests/test_measures.py::TestMeasures::test_scenario[p1_unreachability/bank_vault
 
 Each `.lp` file defines a planning problem using these predicates:
 
-| Predicate       | Description                                |
-| --------------- | ------------------------------------------ |
-| `init(P)`       | Proposition P is true in the initial state |
-| `goal(P)`       | Proposition P is a goal                    |
-| `operator(O)`   | O is an operator/action                    |
-| `precond(O, P)` | Operator O requires proposition P          |
-| `add(O, P)`     | Operator O makes proposition P true        |
-| `delete(O, P)`  | Operator O makes proposition P false       |
+| Predicate           | Description                                   |
+| ------------------- | --------------------------------------------- |
+| `init(P)`           | Proposition P is true in the initial state    |
+| `goal(P)`           | Proposition P is a goal                       |
+| `operator(O)`       | O is an operator/action                       |
+| `precond(O, P)`     | Operator O requires proposition P             |
+| `neg_precond(O, P)` | Operator O requires proposition P to be false |
+| `add(O, P)`         | Operator O makes proposition P true           |
+| `delete(O, P)`      | Operator O makes proposition P false          |

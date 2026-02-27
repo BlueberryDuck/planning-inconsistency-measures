@@ -13,18 +13,19 @@ from planning_measures import compute_measures, MeasureProfile
 SCENARIOS_DIR = Path(__file__).parent / "scenarios"
 
 
-# Expected profiles (from expected_profiles.txt)
+# Expected profiles for each test scenario
 EXPECTED = {
-    "p1_unreachability/locked_door": (1, 3, 0, 0, 0, 0),
+    "edge_cases/coexisting_goals": (0, 0, 0, 0, 0, 0),
+    "edge_cases/delete_relaxation": (1, 1, 0, 0, 0, 0),
+    "edge_cases/empty_goals": (0, 0, 0, 0, 0, 0),
+    "edge_cases/negative_precondition": (1, 1, 0, 0, 0, 0),
+    "edge_cases/single_goal": (0, 0, 0, 0, 0, 0),
+    "mixed/rival_alliances": (0, 0, 2, 1, 2, 2),
+    "mixed/trust_travel": (0, 0, 2, 1, 2, 1),
     "p1_unreachability/bank_vault": (1, 7, 0, 0, 0, 0),
+    "p1_unreachability/locked_door": (1, 3, 0, 0, 0, 0),
     "p2_mutex/light_switch": (0, 0, 2, 1, 0, 0),
     "p2_mutex/traffic_light": (0, 0, 3, 3, 0, 0),
-    "mixed/trust_travel": (0, 0, 2, 1, 2, 1),
-    "mixed/rival_alliances": (0, 0, 2, 1, 2, 2),
-    "edge_cases/coexisting_goals": (0, 0, 0, 0, 0, 0),
-    "edge_cases/single_goal": (0, 0, 0, 0, 0, 0),
-    "edge_cases/empty_goals": (0, 0, 0, 0, 0, 0),
-    "edge_cases/delete_relaxation": (1, 1, 0, 0, 0, 0),
 }
 
 
@@ -68,20 +69,24 @@ class TestComputeMeasuresAPI:
         with pytest.raises(FileNotFoundError, match="Problem file not found"):
             compute_measures("nonexistent.lp")
 
-    def test_accepts_path_object(self):
-        profile = compute_measures(SCENARIOS_DIR / "edge_cases/single_goal.lp")
-        assert profile.is_consistent
+    def test_unsatisfiable_raises_error(self):
+        """UNSAT problems should raise RuntimeError."""
+        with pytest.raises(RuntimeError, match="ASP solving failed"):
+            compute_measures(SCENARIOS_DIR / "edge_cases/unsatisfiable.lp")
 
-    def test_accepts_string_path(self):
-        profile = compute_measures(str(SCENARIOS_DIR / "edge_cases/single_goal.lp"))
-        assert profile.is_consistent
-
-    def test_custom_horizon(self):
-        # Should work with different horizon values
-        profile = compute_measures(
-            SCENARIOS_DIR / "edge_cases/single_goal.lp", horizon=10
+    def test_horizon_sensitivity(self):
+        """Insufficient horizon should report false unreachability."""
+        # Chain a->b->c->d needs 3 steps; horizon=2 is too short
+        short = compute_measures(
+            SCENARIOS_DIR / "edge_cases/horizon_sensitive.lp", horizon=2
         )
-        assert profile.is_consistent
+        assert short.ur_scope == 1  # d appears unreachable
+
+        # Sufficient horizon resolves the chain
+        full = compute_measures(
+            SCENARIOS_DIR / "edge_cases/horizon_sensitive.lp", horizon=3
+        )
+        assert full.is_consistent
 
 
 class TestMeasureHierarchy:
