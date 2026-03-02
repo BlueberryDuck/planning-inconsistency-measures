@@ -102,18 +102,25 @@ def find_pddl_pairs(
 
 
 def _compute_single(
-    domain_name: str, domain_path: Path, problem_path: Path, horizon: int
+    domain_name: str,
+    domain_path: Path,
+    problem_path: Path,
+    horizon: int,
+    timeout: int = 0,
 ) -> dict:
     """Compute measures for a single problem. Returns result dict."""
     start = time.time()
     try:
         profile = compute_measures(
-            problem_path, domain_path=domain_path, horizon=horizon
+            problem_path, domain_path=domain_path, horizon=horizon, timeout=timeout
         )
         elapsed = time.time() - start
         return {
             "domain": domain_name,
             "problem": problem_path.stem,
+            "num_goals": profile.num_goals,
+            "num_props": profile.num_props,
+            "num_operators": profile.num_operators,
             "ur_scope": profile.ur_scope,
             "ur_struct": profile.ur_struct,
             "mx_scope": profile.mx_scope,
@@ -124,11 +131,32 @@ def _compute_single(
             "time_s": round(elapsed, 2),
             "status": "OK",
         }
+    except TimeoutError:
+        elapsed = time.time() - start
+        return {
+            "domain": domain_name,
+            "problem": problem_path.stem,
+            "num_goals": "",
+            "num_props": "",
+            "num_operators": "",
+            "ur_scope": "",
+            "ur_struct": "",
+            "mx_scope": "",
+            "mx_struct": "",
+            "gs_scope": "",
+            "gs_struct": "",
+            "category": "",
+            "time_s": round(elapsed, 2),
+            "status": "TIMEOUT",
+        }
     except Exception as e:
         elapsed = time.time() - start
         return {
             "domain": domain_name,
             "problem": problem_path.stem,
+            "num_goals": "",
+            "num_props": "",
+            "num_operators": "",
             "ur_scope": "",
             "ur_struct": "",
             "mx_scope": "",
@@ -144,6 +172,9 @@ def _compute_single(
 CSV_FIELDS = [
     "domain",
     "problem",
+    "num_goals",
+    "num_props",
+    "num_operators",
     "ur_scope",
     "ur_struct",
     "mx_scope",
@@ -161,6 +192,7 @@ def run_benchmark(
     output_csv: str | Path = "results.csv",
     horizon: int = 20,
     skip_domains: set[str] | None = None,
+    timeout: int = 0,
 ) -> Path:
     """
     Run measure computation on all PDDL problems in a benchmark directory.
@@ -171,6 +203,7 @@ def run_benchmark(
         horizon: Maximum exploration steps
         skip_domains: Domain names to exclude (pass KNOWN_INCOMPATIBLE
                       to skip domains that timeout or fail with plasp)
+        timeout: Time limit in seconds per problem (0 = no limit)
 
     Returns:
         Path to output CSV file
@@ -190,7 +223,9 @@ def run_benchmark(
     for i, (domain_name, domain_path, problem_path) in enumerate(pairs, 1):
         logger.info("[%d/%d] %s/%s", i, len(pairs), domain_name, problem_path.stem)
 
-        result = _compute_single(domain_name, domain_path, problem_path, horizon)
+        result = _compute_single(
+            domain_name, domain_path, problem_path, horizon, timeout
+        )
         results.append(result)
 
         if result["status"] == "OK":

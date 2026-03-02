@@ -29,6 +29,7 @@ def compute_measures(
     problem_path: Path | str,
     horizon: int = 20,
     domain_path: Path | str | None = None,
+    timeout: int = 0,
 ) -> MeasureProfile:
     """
     Compute all six inconsistency measures for a planning problem.
@@ -45,6 +46,7 @@ def compute_measures(
                  Default: 20
         domain_path: Path to PDDL domain file. When provided, plasp
                      is used to translate PDDL to ASP.
+        timeout: Time limit in seconds for Clingo solving (0 = no limit)
 
     Returns:
         MeasureProfile containing all six measure values
@@ -52,6 +54,7 @@ def compute_measures(
     Raises:
         FileNotFoundError: If any input file doesn't exist
         RuntimeError: If ASP solving or plasp translation fails
+        TimeoutError: If solving exceeds the time limit
     """
     problem_path = Path(problem_path)
     if not problem_path.exists():
@@ -72,7 +75,7 @@ def compute_measures(
         cleanup = None
 
     try:
-        data = _collect_brave(problem_path, horizon, use_bridge)
+        data = _collect_brave(problem_path, horizon, use_bridge, timeout)
     finally:
         if cleanup is not None:
             cleanup()
@@ -86,7 +89,9 @@ def _translate_pddl(
     domain_path: Path, problem_path: Path
 ) -> tuple[Path, bool, Callable]:
     """Translate PDDL to ASP via plasp. Returns (lp_path, use_bridge, cleanup_fn)."""
-    logger.info("Translating PDDL via plasp: %s + %s", domain_path.name, problem_path.name)
+    logger.info(
+        "Translating PDDL via plasp: %s + %s", domain_path.name, problem_path.name
+    )
     domain_text = strip_costs(domain_path.read_text())
     problem_text = strip_costs(problem_path.read_text())
 
@@ -140,14 +145,20 @@ def _measures_from_data(data: dict) -> MeasureProfile:
         mx_struct=mx_struct,
         gs_scope=gs_scope,
         gs_struct=gs_struct,
+        num_goals=len(goals),
+        num_props=len(props),
+        num_operators=len(data["operators"]),
     )
 
 
-def _collect_brave(problem_path: Path, horizon: int, use_bridge: bool) -> dict:
+def _collect_brave(
+    problem_path: Path, horizon: int, use_bridge: bool, timeout: int = 0
+) -> dict:
     """Collect all measure data from a single brave reasoning pass."""
     data = {
         "goals": set(),
         "props": set(),
+        "operators": set(),
         "true_reachable": set(),
         "coexist": set(),
         "g2_after_g1": set(),
@@ -158,6 +169,8 @@ def _collect_brave(problem_path: Path, horizon: int, use_bridge: bool) -> dict:
             data["goals"].add(args[0])
         elif name == "prop" and len(args) == 1:
             data["props"].add(args[0])
+        elif name == "operator" and len(args) == 1:
+            data["operators"].add(args[0])
         elif name == "true_reachable" and len(args) == 1:
             data["true_reachable"].add(args[0])
         elif name == "coexist_witness" and len(args) == 2:
@@ -167,13 +180,16 @@ def _collect_brave(problem_path: Path, horizon: int, use_bridge: bool) -> dict:
         elif name == "g2_after_g1_witness" and len(args) == 2:
             data["g2_after_g1"].add(args)
 
-    if not solve_brave(problem_path, horizon, on_atom, use_bridge=use_bridge):
+    if not solve_brave(
+        problem_path, horizon, on_atom, use_bridge=use_bridge, timeout=timeout
+    ):
         raise RuntimeError(f"ASP solving failed for {problem_path}")
 
     logger.debug(
-        "Brave data: %d goals, %d props, %d reachable, %d coexist, %d g2_after_g1",
+        "Brave data: %d goals, %d props, %d operators, %d reachable, %d coexist, %d g2_after_g1",
         len(data["goals"]),
         len(data["props"]),
+        len(data["operators"]),
         len(data["true_reachable"]),
         len(data["coexist"]),
         len(data["g2_after_g1"]),

@@ -30,6 +30,9 @@ class MeasureProfile:
     mx_struct: int
     gs_scope: int
     gs_struct: int
+    num_goals: int = 0
+    num_props: int = 0
+    num_operators: int = 0
 
     def as_tuple(self) -> tuple[int, int, int, int, int, int]:
         """Return profile as a 6-tuple."""
@@ -76,6 +79,7 @@ class MeasureProfile:
         lines = [
             f"Profile: {self}",
             f"Category: {self.category}",
+            f"Problem size: {self.num_goals} goals, {self.num_props} propositions, {self.num_operators} operators",
             "",
             "P1 Unreachability:",
             f"  - Unreachable goals: {self.ur_scope}",

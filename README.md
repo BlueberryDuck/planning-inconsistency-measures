@@ -51,6 +51,9 @@ print(profile.summary()) # Detailed breakdown
 
 # From pre-translated ASP file
 profile = compute_measures("problem.lp", horizon=20)
+
+# With timeout (seconds, 0 = no limit)
+profile = compute_measures("problem.pddl", domain_path="domain.pddl", horizon=20, timeout=60)
 ```
 
 ### Batch Benchmarking
@@ -64,11 +67,11 @@ python cli.py  # Select option 3, enter benchmark path and output CSV
 # Via Python
 python -c "
 from planning_measures.batch import run_benchmark
-run_benchmark('~/Documents/unsolvable-benchmarks/unsolve-ipc-2016/domains/FINAL/diagnosis', 'results/diagnosis.csv')
+run_benchmark('~/Documents/unsolvable-benchmarks/unsolve-ipc-2016/domains/FINAL/diagnosis', 'results/diagnosis.csv', timeout=60)
 "
 ```
 
-The runner auto-discovers domain/problem pairs using IPC naming conventions (`domain.pddl` + `prob*.pddl`, or numbered `dom01.pddl` + `prob01.pddl`). Output is a CSV with columns: `domain, problem, ur_scope, ur_struct, mx_scope, mx_struct, gs_scope, gs_struct, category, time_s, status`.
+The runner auto-discovers domain/problem pairs using IPC naming conventions (`domain.pddl` + `prob*.pddl`, or numbered `dom01.pddl` + `prob01.pddl`). Output is a CSV with columns: `domain, problem, num_goals, num_props, num_operators, ur_scope, ur_struct, mx_scope, mx_struct, gs_scope, gs_struct, category, time_s, status`.
 
 **Compatible IPC 2016 domains** (within 60s timeout): `diagnosis`, `pegsol-row5`, `bottleneck`, `cave-diving`, `document-transfer`. Other domains timeout due to grounding complexity. See the thesis (Ch5/Ch6) for details.
 
@@ -85,7 +88,7 @@ run_benchmark(
 "
 ```
 
-`KNOWN_INCOMPATIBLE` skips 9 domains that either fail with plasp (`:equality`) or timeout due to grounding complexity. Without it, those domains will block indefinitely.
+`KNOWN_INCOMPATIBLE` skips 9 domains that either fail with plasp (`:equality`) or timeout due to grounding complexity. Alternatively, use `timeout=60` to let them fail gracefully with `TIMEOUT` status in the CSV.
 
 ### Running Tests
 
@@ -138,6 +141,8 @@ thesis-planning-measures/
 
 Profile format: `(ur_scope, ur_struct, mx_scope, mx_struct, gs_scope, gs_struct)`
 
+The profile also exposes problem size metadata: `num_goals`, `num_props`, `num_operators`.
+
 \*At default horizon=20. At horizon=2: `(1,1,0,0,0,0)` (insufficient depth).
 
 ## Architecture
@@ -157,8 +162,8 @@ The PDDL pipeline:
 
 ## Configuration
 
-Default horizon is 20 steps. Override via:
+Default horizon is 20 steps, no timeout. Override via:
 
 ```python
-profile = compute_measures("problem.pddl", domain_path="domain.pddl", horizon=100)
+profile = compute_measures("problem.pddl", domain_path="domain.pddl", horizon=100, timeout=60)
 ```

@@ -23,6 +23,7 @@ def solve_brave(
     horizon: int,
     on_atom: Callable[[str, tuple], None],
     use_bridge: bool = False,
+    timeout: int = 0,
 ) -> bool:
     """
     Run brave reasoning (union of all answer sets).
@@ -32,18 +33,24 @@ def solve_brave(
         horizon: State exploration depth
         on_atom: Callback receiving (predicate_name, arguments) for each shown atom
         use_bridge: If True, load the plasp bridge encoding (for plasp-translated input)
+        timeout: Time limit in seconds (0 = no limit)
 
     Returns:
         True if satisfiable, False otherwise
+
+    Raises:
+        TimeoutError: If the solve process exceeds the time limit
     """
-    ctl = clingo.Control(
-        [
-            f"-c horizon={horizon}",
-            "--warn=no-atom-undefined",
-            "--enum-mode=brave",
-            "0",
-        ]
-    )
+    args = [
+        f"-c horizon={horizon}",
+        "--warn=no-atom-undefined",
+        "--enum-mode=brave",
+        "0",
+    ]
+    if timeout > 0:
+        args.append(f"--time-limit={timeout}")
+
+    ctl = clingo.Control(args)
 
     logger.debug("Loading encodings (horizon=%d, bridge=%s)", horizon, use_bridge)
 
@@ -69,7 +76,12 @@ def solve_brave(
             )
             on_atom(atom.name, args)
 
-    ctl.solve(on_model=on_model)
+    result = ctl.solve(on_model=on_model)
+
+    if result.interrupted:
+        raise TimeoutError(
+            f"Solve exceeded {timeout}s time limit for {problem_path.name}"
+        )
 
     logger.info(
         "Solve complete: %s (%d atoms)",

@@ -87,13 +87,14 @@ def action_compute_lp():
         return
 
     horizon = get_int("Horizon", 20)
+    timeout = get_int("Timeout (seconds, 0=none)", 0)
 
     print()
     print(f"Computing measures for {path.name}...")
 
     try:
         start = time.time()
-        profile = compute_measures(path, horizon=horizon)
+        profile = compute_measures(path, horizon=horizon, timeout=timeout)
         elapsed = time.time() - start
 
         print()
@@ -117,6 +118,7 @@ def action_compute_pddl():
         return
 
     horizon = get_int("Horizon", 20)
+    timeout = get_int("Timeout (seconds, 0=none)", 0)
 
     print()
     print(f"Computing measures for {problem_path.name}...")
@@ -124,7 +126,7 @@ def action_compute_pddl():
     try:
         start = time.time()
         profile = compute_measures(
-            problem_path, domain_path=domain_path, horizon=horizon
+            problem_path, domain_path=domain_path, horizon=horizon, timeout=timeout
         )
         elapsed = time.time() - start
 
@@ -150,9 +152,10 @@ def action_batch_benchmark():
         output_path = Path("results.csv")
 
     horizon = get_int("Horizon", 20)
+    timeout = get_int("Timeout per problem (seconds, 0=none)", 60)
 
     try:
-        run_benchmark(input_dir, output_path, horizon=horizon)
+        run_benchmark(input_dir, output_path, horizon=horizon, timeout=timeout)
     except Exception as e:
         print(colored(f"Error: {e}", Colors.RED))
 
