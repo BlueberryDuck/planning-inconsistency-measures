@@ -26,17 +26,27 @@ pip install -e ".[dev]"
 
 ## Usage
 
-### Interactive Mode
+### CLI
 
 ```bash
-python cli.py
+# Single ASP scenario
+planning-measures compute tests/scenarios/p1_unreachability/locked_door.lp
+
+# PDDL problem
+planning-measures compute -d domain.pddl problem.pddl
+
+# Custom horizon and timeout
+planning-measures compute -d domain.pddl problem.pddl -H 30 -t 60
+
+# Batch run (outputs CSV)
+planning-measures batch benchmarks/diagnosis/ -o results/diagnosis.csv
+
+# Help
+planning-measures -h
+planning-measures compute -h
 ```
 
-Provides a menu-driven interface for:
-
-- Computing measures for a single .lp file
-- Computing measures from PDDL domain + problem files
-- Batch processing PDDL benchmark directories
+With Docker: prefix commands with `./run.sh` (e.g., `./run.sh planning-measures compute ...`).
 
 ### Library API
 
@@ -52,8 +62,6 @@ print(profile.summary()) # Detailed breakdown
 # From pre-translated ASP file
 profile = compute_measures("problem.lp", horizon=20)
 
-# With timeout (seconds, 0 = no limit)
-profile = compute_measures("problem.pddl", domain_path="domain.pddl", horizon=20, timeout=60)
 ```
 
 ### Batch Benchmarking
@@ -61,13 +69,13 @@ profile = compute_measures("problem.pddl", domain_path="domain.pddl", horizon=20
 Run measures on all problems in a benchmark directory:
 
 ```bash
-# Via CLI (interactive)
-python cli.py  # Select option 3, enter benchmark path and output CSV
+# Via CLI
+planning-measures batch benchmarks/diagnosis/ -o results/diagnosis.csv
 
 # Via Python
 python -c "
 from planning_measures.batch import run_benchmark
-run_benchmark('~/Documents/unsolvable-benchmarks/unsolve-ipc-2016/domains/FINAL/diagnosis', 'results/diagnosis.csv', timeout=60)
+run_benchmark('benchmarks/unsolve-ipc-2016/domains/FINAL/diagnosis', 'results/diagnosis.csv', timeout=60)
 "
 ```
 
@@ -81,14 +89,14 @@ To run all compatible domains at once, use `skip_domains` to exclude known-incom
 python -c "
 from planning_measures.batch import run_benchmark, KNOWN_INCOMPATIBLE
 run_benchmark(
-    '~/Documents/unsolvable-benchmarks/unsolve-ipc-2016/domains/FINAL',
+    'benchmarks/unsolve-ipc-2016/domains/FINAL',
     'results/ipc2016.csv',
     skip_domains=KNOWN_INCOMPATIBLE,
 )
 "
 ```
 
-`KNOWN_INCOMPATIBLE` skips 9 domains that either fail with plasp (`:equality`) or timeout due to grounding complexity. Alternatively, use `timeout=60` to let them fail gracefully with `TIMEOUT` status in the CSV.
+`KNOWN_INCOMPATIBLE` skips 9 domains that either fail with plasp (`:equality`) or timeout due to grounding complexity. Alternatively, pass `timeout=60` to `run_benchmark` to let them fail gracefully with `TIMEOUT` status in the CSV. Timeout is enforced by killing the child process with `SIGKILL`, which reliably terminates Clingo even during grounding.
 
 ### Running Tests
 
@@ -106,7 +114,9 @@ thesis-planning-measures/
 │   └── reachability.lp          # State exploration, witnesses, true reachability
 ├── planning_measures/           # Library package
 │   ├── __init__.py              # Public API
+│   ├── __main__.py              # Enables `python -m planning_measures`
 │   ├── batch.py                 # Batch benchmark runner (CSV output)
+│   ├── cli.py                   # CLI (planning-measures command)
 │   ├── measures.py              # Core computation (single brave pass)
 │   ├── pddl_preprocessor.py    # Strips action costs from PDDL for plasp
 │   ├── profile.py               # MeasureProfile dataclass
@@ -116,7 +126,6 @@ thesis-planning-measures/
 │   ├── scenarios/               # ASP test scenarios
 │   ├── test_measures.py         # pytest: measure computation + hierarchy
 │   └── test_plasp.py            # pytest: plasp pipeline + preprocessor
-├── cli.py                       # Interactive CLI
 ├── docker-compose.yml           # Container orchestration
 ├── Dockerfile                   # Container definition
 └── pyproject.toml               # Project config & dependencies
@@ -150,7 +159,7 @@ The profile also exposes problem size metadata: `num_goals`, `num_props`, `num_o
 Two independent layers:
 
 - **Library** (`planning_measures/`): importable Python package with `compute_measures()`. Uses Python `logging` (no output unless caller configures a handler). Dependencies: clingo (Python), plasp (external).
-- **CLI** (`cli.py`): interactive terminal wrapper. Not imported by library or tests.
+- **CLI** (`planning_measures/cli.py`): `planning-measures` console script, installed via `pyproject.toml` entry point. Not imported by library or tests.
 
 The PDDL pipeline:
 

@@ -9,6 +9,6 @@ __pycache__/
 # Virtual environment
 .venv/
 
-# Generated
-experiments/
-results*.csv
+# Benchmark data and results
+benchmarks
+results

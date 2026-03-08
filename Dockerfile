@@ -6,11 +6,7 @@ RUN tar xzf /tmp/plasp-3.1.1-linux-x86_64.tar.gz -C /tmp && \
     cp /tmp/plasp-3.1.1/plasp /usr/local/bin/plasp && \
     rm -rf /tmp/plasp-3.1.1*
 
+# Pre-install dependencies (cached across rebuilds)
+RUN pip install --no-cache-dir clingo pytest
+
 WORKDIR /workspace
-COPY pyproject.toml .
-COPY planning_measures/ planning_measures/
-COPY encodings/ encodings/
-
-RUN pip install --no-cache-dir -e ".[dev]"
-
-CMD ["/bin/bash"]

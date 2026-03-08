@@ -16,6 +16,7 @@ Usage:
 
 import csv
 import logging
+import multiprocessing as mp
 import re
 import time
 from pathlib import Path
@@ -101,6 +102,53 @@ def find_pddl_pairs(
     return pairs
 
 
+def _worker(queue, problem_path, domain_path, horizon):
+    """Child process: compute measures and send result via queue."""
+    try:
+        from .measures import compute_measures as _compute
+
+        profile = _compute(problem_path, domain_path=domain_path, horizon=horizon)
+        queue.put(
+            (
+                "ok",
+                {
+                    "num_goals": profile.num_goals,
+                    "num_props": profile.num_props,
+                    "num_operators": profile.num_operators,
+                    "ur_scope": profile.ur_scope,
+                    "ur_struct": profile.ur_struct,
+                    "mx_scope": profile.mx_scope,
+                    "mx_struct": profile.mx_struct,
+                    "gs_scope": profile.gs_scope,
+                    "gs_struct": profile.gs_struct,
+                    "category": profile.category,
+                },
+            )
+        )
+    except Exception as e:
+        queue.put(("error", f"{type(e).__name__}: {str(e)[:100]}"))
+
+
+def _empty_result(domain_name, problem_path, elapsed, status):
+    """Create an error/timeout result dict."""
+    return {
+        "domain": domain_name,
+        "problem": problem_path.stem,
+        "num_goals": "",
+        "num_props": "",
+        "num_operators": "",
+        "ur_scope": "",
+        "ur_struct": "",
+        "mx_scope": "",
+        "mx_struct": "",
+        "gs_scope": "",
+        "gs_struct": "",
+        "category": "",
+        "time_s": round(elapsed, 2),
+        "status": status,
+    }
+
+
 def _compute_single(
     domain_name: str,
     domain_path: Path,
@@ -108,65 +156,77 @@ def _compute_single(
     horizon: int,
     timeout: int = 0,
 ) -> dict:
-    """Compute measures for a single problem. Returns result dict."""
+    """Compute measures for a single problem. Returns result dict.
+
+    Uses a subprocess to enforce timeout — SIGKILL reliably kills
+    clingo even when blocked in C extension grounding/solving.
+    """
     start = time.time()
-    try:
-        profile = compute_measures(
-            problem_path, domain_path=domain_path, horizon=horizon, timeout=timeout
-        )
+
+    if timeout <= 0:
+        # No timeout: run in-process
+        try:
+            profile = compute_measures(
+                problem_path, domain_path=domain_path, horizon=horizon
+            )
+            elapsed = time.time() - start
+            return {
+                "domain": domain_name,
+                "problem": problem_path.stem,
+                "num_goals": profile.num_goals,
+                "num_props": profile.num_props,
+                "num_operators": profile.num_operators,
+                "ur_scope": profile.ur_scope,
+                "ur_struct": profile.ur_struct,
+                "mx_scope": profile.mx_scope,
+                "mx_struct": profile.mx_struct,
+                "gs_scope": profile.gs_scope,
+                "gs_struct": profile.gs_struct,
+                "category": profile.category,
+                "time_s": round(elapsed, 2),
+                "status": "OK",
+            }
+        except Exception as e:
+            elapsed = time.time() - start
+            return _empty_result(
+                domain_name, problem_path, elapsed, f"ERROR: {str(e)[:100]}"
+            )
+
+    # With timeout: run in a child process that can be killed
+    ctx = mp.get_context("spawn")
+    queue = ctx.Queue()
+    proc = ctx.Process(
+        target=_worker,
+        args=(queue, str(problem_path), str(domain_path), horizon),
+    )
+    proc.start()
+    proc.join(timeout=timeout)
+
+    if proc.is_alive():
+        proc.kill()
+        proc.join()
         elapsed = time.time() - start
+        return _empty_result(domain_name, problem_path, elapsed, "TIMEOUT")
+
+    elapsed = time.time() - start
+
+    try:
+        status, value = queue.get_nowait()
+    except Exception:
+        return _empty_result(
+            domain_name, problem_path, elapsed, "ERROR: worker exited without result"
+        )
+
+    if status == "ok":
         return {
             "domain": domain_name,
             "problem": problem_path.stem,
-            "num_goals": profile.num_goals,
-            "num_props": profile.num_props,
-            "num_operators": profile.num_operators,
-            "ur_scope": profile.ur_scope,
-            "ur_struct": profile.ur_struct,
-            "mx_scope": profile.mx_scope,
-            "mx_struct": profile.mx_struct,
-            "gs_scope": profile.gs_scope,
-            "gs_struct": profile.gs_struct,
-            "category": profile.category,
+            **value,
             "time_s": round(elapsed, 2),
             "status": "OK",
         }
-    except TimeoutError:
-        elapsed = time.time() - start
-        return {
-            "domain": domain_name,
-            "problem": problem_path.stem,
-            "num_goals": "",
-            "num_props": "",
-            "num_operators": "",
-            "ur_scope": "",
-            "ur_struct": "",
-            "mx_scope": "",
-            "mx_struct": "",
-            "gs_scope": "",
-            "gs_struct": "",
-            "category": "",
-            "time_s": round(elapsed, 2),
-            "status": "TIMEOUT",
-        }
-    except Exception as e:
-        elapsed = time.time() - start
-        return {
-            "domain": domain_name,
-            "problem": problem_path.stem,
-            "num_goals": "",
-            "num_props": "",
-            "num_operators": "",
-            "ur_scope": "",
-            "ur_struct": "",
-            "mx_scope": "",
-            "mx_struct": "",
-            "gs_scope": "",
-            "gs_struct": "",
-            "category": "",
-            "time_s": round(elapsed, 2),
-            "status": f"ERROR: {str(e)[:100]}",
-        }
+    else:
+        return _empty_result(domain_name, problem_path, elapsed, f"ERROR: {value}")
 
 
 CSV_FIELDS = [
@@ -217,38 +277,36 @@ def run_benchmark(
 
     logger.info("Found %d problems in %s", len(pairs), benchmark_dir)
 
-    results = []
+    output_csv.parent.mkdir(parents=True, exist_ok=True)
     ok_count = 0
 
-    for i, (domain_name, domain_path, problem_path) in enumerate(pairs, 1):
-        logger.info("[%d/%d] %s/%s", i, len(pairs), domain_name, problem_path.stem)
-
-        result = _compute_single(
-            domain_name, domain_path, problem_path, horizon, timeout
-        )
-        results.append(result)
-
-        if result["status"] == "OK":
-            logger.info(
-                "  (%s,%s,%s,%s,%s,%s) [%ss]",
-                result["ur_scope"],
-                result["ur_struct"],
-                result["mx_scope"],
-                result["mx_struct"],
-                result["gs_scope"],
-                result["gs_struct"],
-                result["time_s"],
-            )
-            ok_count += 1
-        else:
-            logger.warning("  %s [%ss]", result["status"], result["time_s"])
-
-    # Write CSV
-    output_csv.parent.mkdir(parents=True, exist_ok=True)
     with open(output_csv, "w", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=CSV_FIELDS)
         writer.writeheader()
-        writer.writerows(results)
+
+        for i, (domain_name, domain_path, problem_path) in enumerate(pairs, 1):
+            logger.info("[%d/%d] %s/%s", i, len(pairs), domain_name, problem_path.stem)
+
+            result = _compute_single(
+                domain_name, domain_path, problem_path, horizon, timeout
+            )
+            writer.writerow(result)
+            f.flush()
+
+            if result["status"] == "OK":
+                logger.info(
+                    "  (%s,%s,%s,%s,%s,%s) [%ss]",
+                    result["ur_scope"],
+                    result["ur_struct"],
+                    result["mx_scope"],
+                    result["mx_struct"],
+                    result["gs_scope"],
+                    result["gs_struct"],
+                    result["time_s"],
+                )
+                ok_count += 1
+            else:
+                logger.warning("  %s [%ss]", result["status"], result["time_s"])
 
     logger.info("Done: %d/%d OK. Results: %s", ok_count, len(pairs), output_csv)
 
