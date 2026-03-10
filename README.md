@@ -171,8 +171,10 @@ The PDDL pipeline:
 
 ## Configuration
 
-Default horizon is 20 steps, no timeout. Override via:
+Default horizon is 20 steps. Override via:
 
 ```python
-profile = compute_measures("problem.pddl", domain_path="domain.pddl", horizon=100, timeout=60)
+profile = compute_measures("problem.pddl", domain_path="domain.pddl", horizon=100)
 ```
+
+Timeouts are handled at the CLI/batch level (not the library API) using subprocess-based process killing.
