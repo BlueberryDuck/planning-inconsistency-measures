@@ -9,6 +9,5 @@ __pycache__/
 # Virtual environment
 .venv/
 
-# Benchmark data and results
+# Benchmark data
 benchmarks
-results
