@@ -55,14 +55,17 @@ def find_pddl_pairs(
     Handles IPC naming conventions:
     - domain.pddl + prob*.pddl / satprob*.pddl
     - dom01.pddl + prob01.pddl (numbered pairs)
+    - domain_<name>.pddl + <name>.pddl (Eriksson benchmarks)
     """
     pairs = []
     skip = skip_domains or set()
 
     # Check if benchmark_dir contains domain subdirectories or is a single domain
     domain_dirs = []
-    if (benchmark_dir / "domain.pddl").exists() or list(
-        benchmark_dir.glob("dom[0-9]*.pddl")
+    if (
+        (benchmark_dir / "domain.pddl").exists()
+        or list(benchmark_dir.glob("dom[0-9]*.pddl"))
+        or list(benchmark_dir.glob("domain_*.pddl"))
     ):
         # Single domain directory
         domain_dirs.append(("", benchmark_dir))
@@ -98,6 +101,14 @@ def find_pddl_pairs(
                 satprob = domain_dir / f"satprob{num}.pddl"
                 if satprob.exists():
                     pairs.append((label, dom_file, satprob))
+
+            # Eriksson-style: domain_<name>.pddl + <name>.pddl
+            for dom_file in sorted(domain_dir.glob("domain_*.pddl")):
+                suffix = dom_file.name[len("domain_"):]
+                prob = domain_dir / suffix
+                if prob.exists():
+                    label = domain_name or domain_dir.name
+                    pairs.append((label, dom_file, prob))
 
     return pairs
 
