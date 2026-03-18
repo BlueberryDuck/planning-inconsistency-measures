@@ -2,6 +2,8 @@
 
 ASP/Python implementation of diagnostic measures for classical planning problems.
 
+This implementation accompanies the Master's thesis _Inconsistency Measurement for Classical Planning Problems_ by Sebastian Bunge (FernUniversität in Hagen, 2026).
+
 ## Overview
 
 Computes three measures that quantify goal conflicts in unsolvable planning problems:
@@ -75,13 +77,13 @@ planning-measures batch benchmarks/diagnosis/ -o results/diagnosis.csv
 # Via Python
 python -c "
 from planning_measures.batch import run_benchmark
-run_benchmark('benchmarks/unsolve-ipc-2016/domains/FINAL/diagnosis', 'results/diagnosis.csv', timeout=60)
+run_benchmark('benchmarks/unsolve-ipc-2016/domains/FINAL/diagnosis', 'results/diagnosis.csv', timeout=120)
 "
 ```
 
 The runner auto-discovers domain/problem pairs using IPC naming conventions (`domain.pddl` + `prob*.pddl`, or numbered `dom01.pddl` + `prob01.pddl`). Output is a CSV with columns: `domain, problem, num_goals, num_props, num_operators, ur_scope, ur_struct, mx_scope, mx_struct, gs_scope, gs_struct, category, time_s, status`.
 
-**Compatible IPC 2016 domains** (within 60s timeout): `diagnosis`, `pegsol-row5`, `bottleneck`, `cave-diving`, `document-transfer`. Other domains timeout due to grounding complexity. See the thesis (Ch5/Ch6) for details.
+**Compatible IPC 2016 domains** (within 120s timeout): `diagnosis`, `pegsol-row5`, `bottleneck`, `cave-diving`, `document-transfer`, `chessboard-pebbling`. The `3unsat` domain from the Eriksson benchmarks is also compatible. Other domains timeout due to grounding complexity. See the thesis (Ch5/Ch6) for details.
 
 To run all compatible domains at once, use `skip_domains` to exclude known-incompatible ones:
 
@@ -96,7 +98,7 @@ run_benchmark(
 "
 ```
 
-`KNOWN_INCOMPATIBLE` skips 9 domains that either fail with plasp (`:equality`) or timeout due to grounding complexity. Alternatively, pass `timeout=60` to `run_benchmark` to let them fail gracefully with `TIMEOUT` status in the CSV. Timeout is enforced by killing the child process with `SIGKILL`, which reliably terminates Clingo even during grounding.
+`KNOWN_INCOMPATIBLE` skips 9 domains that either fail with plasp (`:equality`) or timeout due to grounding complexity. Alternatively, pass `timeout=120` to `run_benchmark` to let them fail gracefully with `TIMEOUT` status in the CSV. Timeout is enforced by killing the child process with `SIGKILL`, which reliably terminates Clingo even during grounding.
 
 ### Running Tests
 
@@ -107,7 +109,7 @@ pytest tests/ -v
 ## Project Structure
 
 ```
-thesis-planning-measures/
+planning-inconsistency-measures/
 ├── encodings/
 │   ├── bridge_plasp.lp          # Maps plasp vocabulary to internal format
 │   ├── planning.lp              # STRIPS problem representation
@@ -121,6 +123,7 @@ thesis-planning-measures/
 │   ├── pddl_preprocessor.py    # Strips action costs from PDDL for plasp
 │   ├── profile.py               # MeasureProfile dataclass
 │   └── solver.py                # Clingo wrapper (brave reasoning)
+├── results/                     # Benchmark experiment outputs (h=20, t=120s)
 ├── tests/
 │   ├── pddl/                    # PDDL test cases
 │   ├── scenarios/               # ASP test scenarios
@@ -128,6 +131,7 @@ thesis-planning-measures/
 │   └── test_plasp.py            # pytest: plasp pipeline + preprocessor
 ├── docker-compose.yml           # Container orchestration
 ├── Dockerfile                   # Container definition
+├── LICENSE                      # MIT License
 └── pyproject.toml               # Project config & dependencies
 ```
 
