@@ -18,4 +18,4 @@ from .profile import MeasureProfile, TimingProfile
 from .measures import compute_measures
 
 __all__ = ["MeasureProfile", "TimingProfile", "compute_measures"]
-__version__ = "2.0.0"
+__version__ = "1.0.0"
