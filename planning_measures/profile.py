@@ -1,8 +1,38 @@
 """
-MeasureProfile dataclass representing diagnostic results.
+MeasureProfile and TimingProfile dataclasses representing diagnostic results.
 """
 
 from dataclasses import dataclass
+
+
+@dataclass(frozen=True)
+class TimingProfile:
+    """
+    Per-phase timing breakdown for a single measure computation.
+
+    Attributes:
+        translate_s: PDDL-to-ASP translation via plasp (0.0 for .lp input)
+        ground_s: Clingo grounding phase
+        solve_s: Clingo solving phase (brave reasoning)
+        extract_s: Python measure extraction (set operations)
+        total_s: Wall-clock total (may slightly exceed sum due to overhead)
+    """
+
+    translate_s: float = 0.0
+    ground_s: float = 0.0
+    solve_s: float = 0.0
+    extract_s: float = 0.0
+    total_s: float = 0.0
+
+    def as_dict(self) -> dict[str, float]:
+        """Return timing as a dict suitable for CSV output."""
+        return {
+            "time_translate_s": round(self.translate_s, 4),
+            "time_ground_s": round(self.ground_s, 4),
+            "time_solve_s": round(self.solve_s, 4),
+            "time_extract_s": round(self.extract_s, 4),
+            "time_total_s": round(self.total_s, 4),
+        }
 
 
 @dataclass(frozen=True)

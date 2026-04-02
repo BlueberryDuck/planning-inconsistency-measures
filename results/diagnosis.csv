@@ -1,41 +1,41 @@
-domain,problem,num_goals,num_props,num_operators,ur_scope,ur_struct,mx_scope,mx_struct,gs_scope,gs_struct,category,time_s,status
-diagnosis,prob01,16,190,216,9,16,0,0,0,0,2a,0.57,OK
-diagnosis,satprob01,,,,,,,,,,,0.09,ERROR: RuntimeError: plasp translation failed for benchmarks/unsolve-ipc-2016/domains/FINAL/diagnosis/dom01.pddl + benchm
-diagnosis,prob02,16,190,216,9,16,0,0,0,0,2a,0.56,OK
-diagnosis,satprob02,,,,,,,,,,,0.08,ERROR: RuntimeError: plasp translation failed for benchmarks/unsolve-ipc-2016/domains/FINAL/diagnosis/dom02.pddl + benchm
-diagnosis,prob03,16,155,125,10,20,0,0,0,0,2a,0.29,OK
-diagnosis,satprob03,,,,,,,,,,,0.08,ERROR: RuntimeError: plasp translation failed for benchmarks/unsolve-ipc-2016/domains/FINAL/diagnosis/dom03.pddl + benchm
-diagnosis,prob04,38,389,568,31,59,0,0,0,0,2a,1.58,OK
-diagnosis,satprob04,,,,,,,,,,,0.09,ERROR: RuntimeError: plasp translation failed for benchmarks/unsolve-ipc-2016/domains/FINAL/diagnosis/dom04.pddl + benchm
-diagnosis,prob05,56,542,957,49,97,0,0,0,0,2a,2.97,OK
-diagnosis,satprob05,,,,,,,,,,,0.1,ERROR: RuntimeError: plasp translation failed for benchmarks/unsolve-ipc-2016/domains/FINAL/diagnosis/dom05.pddl + benchm
-diagnosis,prob06,7,49,25,1,1,0,0,0,0,2a,0.12,OK
-diagnosis,satprob06,,,,,,,,,,,0.08,ERROR: RuntimeError: plasp translation failed for benchmarks/unsolve-ipc-2016/domains/FINAL/diagnosis/dom06.pddl + benchm
-diagnosis,prob07,22,154,81,12,31,0,0,0,0,2a,0.22,OK
-diagnosis,satprob07,,,,,,,,,,,0.08,ERROR: RuntimeError: plasp translation failed for benchmarks/unsolve-ipc-2016/domains/FINAL/diagnosis/dom07.pddl + benchm
-diagnosis,prob08,24,170,96,14,41,0,0,0,0,2a,0.27,OK
-diagnosis,satprob08,,,,,,,,,,,0.08,ERROR: RuntimeError: plasp translation failed for benchmarks/unsolve-ipc-2016/domains/FINAL/diagnosis/dom08.pddl + benchm
-diagnosis,prob09,24,241,156,14,33,0,0,0,0,2a,41.09,OK
-diagnosis,satprob09,,,,,,,,,,,0.08,ERROR: RuntimeError: plasp translation failed for benchmarks/unsolve-ipc-2016/domains/FINAL/diagnosis/dom09.pddl + benchm
-diagnosis,prob10,24,187,99,14,25,2,1,2,2,2a,0.32,OK
-diagnosis,satprob10,,,,,,,,,,,0.08,ERROR: RuntimeError: plasp translation failed for benchmarks/unsolve-ipc-2016/domains/FINAL/diagnosis/dom10.pddl + benchm
-diagnosis,prob11,22,204,139,14,33,0,0,0,0,2a,2.81,OK
-diagnosis,satprob11,,,,,,,,,,,0.08,ERROR: RuntimeError: plasp translation failed for benchmarks/unsolve-ipc-2016/domains/FINAL/diagnosis/dom11.pddl + benchm
-diagnosis,prob12,24,199,99,15,26,0,0,0,0,2a,0.56,OK
-diagnosis,satprob12,,,,,,,,,,,0.08,ERROR: RuntimeError: plasp translation failed for benchmarks/unsolve-ipc-2016/domains/FINAL/diagnosis/dom12.pddl + benchm
-diagnosis,prob13,36,399,232,27,67,0,0,0,0,2a,1.0,OK
-diagnosis,satprob13,,,,,,,,,,,0.09,ERROR: RuntimeError: plasp translation failed for benchmarks/unsolve-ipc-2016/domains/FINAL/diagnosis/dom13.pddl + benchm
-diagnosis,prob14,28,314,152,19,38,0,0,0,0,2a,1.41,OK
-diagnosis,satprob14,,,,,,,,,,,0.08,ERROR: RuntimeError: plasp translation failed for benchmarks/unsolve-ipc-2016/domains/FINAL/diagnosis/dom14.pddl + benchm
-diagnosis,prob15,24,240,155,14,35,0,0,0,0,2a,0.57,OK
-diagnosis,satprob15,,,,,,,,,,,0.08,ERROR: RuntimeError: plasp translation failed for benchmarks/unsolve-ipc-2016/domains/FINAL/diagnosis/dom15.pddl + benchm
-diagnosis,prob16,36,457,257,20,32,8,28,8,56,2a,2.54,OK
-diagnosis,satprob16,,,,,,,,,,,0.09,ERROR: RuntimeError: plasp translation failed for benchmarks/unsolve-ipc-2016/domains/FINAL/diagnosis/dom16.pddl + benchm
-diagnosis,prob17,24,214,120,15,27,0,0,0,0,2a,0.51,OK
-diagnosis,satprob17,,,,,,,,,,,0.08,ERROR: RuntimeError: plasp translation failed for benchmarks/unsolve-ipc-2016/domains/FINAL/diagnosis/dom17.pddl + benchm
-diagnosis,prob18,,,,,,,,,,,120.11,TIMEOUT
-diagnosis,satprob18,,,,,,,,,,,0.11,ERROR: RuntimeError: plasp translation failed for benchmarks/unsolve-ipc-2016/domains/FINAL/diagnosis/dom18.pddl + benchm
-diagnosis,prob19,24,214,120,15,27,0,0,0,0,2a,0.52,OK
-diagnosis,satprob19,,,,,,,,,,,0.08,ERROR: RuntimeError: plasp translation failed for benchmarks/unsolve-ipc-2016/domains/FINAL/diagnosis/dom19.pddl + benchm
-diagnosis,prob20,,,,,,,,,,,120.11,TIMEOUT
-diagnosis,satprob20,,,,,,,,,,,0.12,ERROR: RuntimeError: plasp translation failed for benchmarks/unsolve-ipc-2016/domains/FINAL/diagnosis/dom20.pddl + benchm
+domain,problem,num_goals,num_props,num_operators,ur_scope,ur_struct,mx_scope,mx_struct,gs_scope,gs_struct,category,time_translate_s,time_ground_s,time_solve_s,time_extract_s,time_total_s,status
+diagnosis,prob01,16,190,216,9,16,0,0,0,0,2a,0.0349,0.0621,0.3639,0.0,0.4935,OK
+diagnosis,satprob01,,,,,,,,,,,,,,,,ERROR: RuntimeError: plasp translation failed for benchmarks/unsolve-ipc-2016/domains/FINAL/diagnosis/dom01.pddl + benchm
+diagnosis,prob02,16,190,216,9,16,0,0,0,0,2a,0.0355,0.0649,0.3611,0.0001,0.4938,OK
+diagnosis,satprob02,,,,,,,,,,,,,,,,ERROR: RuntimeError: plasp translation failed for benchmarks/unsolve-ipc-2016/domains/FINAL/diagnosis/dom02.pddl + benchm
+diagnosis,prob03,16,155,125,10,20,0,0,0,0,2a,0.0203,0.0343,0.1467,0.0,0.2186,OK
+diagnosis,satprob03,,,,,,,,,,,,,,,,ERROR: RuntimeError: plasp translation failed for benchmarks/unsolve-ipc-2016/domains/FINAL/diagnosis/dom03.pddl + benchm
+diagnosis,prob04,38,389,568,31,59,0,0,0,0,2a,0.1036,0.2621,1.0846,0.0003,1.5529,OK
+diagnosis,satprob04,,,,,,,,,,,,,,,,ERROR: RuntimeError: plasp translation failed for benchmarks/unsolve-ipc-2016/domains/FINAL/diagnosis/dom04.pddl + benchm
+diagnosis,prob05,56,542,957,49,97,0,0,0,0,2a,0.1513,0.3471,2.2945,0.0009,2.941,OK
+diagnosis,satprob05,,,,,,,,,,,,,,,,ERROR: RuntimeError: plasp translation failed for benchmarks/unsolve-ipc-2016/domains/FINAL/diagnosis/dom05.pddl + benchm
+diagnosis,prob06,7,49,25,1,1,0,0,0,0,2a,0.0059,0.0098,0.0183,0.0,0.0379,OK
+diagnosis,satprob06,,,,,,,,,,,,,,,,ERROR: RuntimeError: plasp translation failed for benchmarks/unsolve-ipc-2016/domains/FINAL/diagnosis/dom06.pddl + benchm
+diagnosis,prob07,22,154,81,12,31,0,0,0,0,2a,0.0125,0.0239,0.1022,0.0001,0.1492,OK
+diagnosis,satprob07,,,,,,,,,,,,,,,,ERROR: RuntimeError: plasp translation failed for benchmarks/unsolve-ipc-2016/domains/FINAL/diagnosis/dom07.pddl + benchm
+diagnosis,prob08,24,170,96,14,41,0,0,0,0,2a,0.0186,0.0359,0.1276,0.0,0.1976,OK
+diagnosis,satprob08,,,,,,,,,,,,,,,,ERROR: RuntimeError: plasp translation failed for benchmarks/unsolve-ipc-2016/domains/FINAL/diagnosis/dom08.pddl + benchm
+diagnosis,prob09,24,241,156,14,33,0,0,0,0,2a,0.0335,0.1133,42.9668,0.0003,43.1506,OK
+diagnosis,satprob09,,,,,,,,,,,,,,,,ERROR: RuntimeError: plasp translation failed for benchmarks/unsolve-ipc-2016/domains/FINAL/diagnosis/dom09.pddl + benchm
+diagnosis,prob10,24,187,99,14,25,2,1,2,2,2a,0.0201,0.0404,0.1873,0.0001,0.2644,OK
+diagnosis,satprob10,,,,,,,,,,,,,,,,ERROR: RuntimeError: plasp translation failed for benchmarks/unsolve-ipc-2016/domains/FINAL/diagnosis/dom10.pddl + benchm
+diagnosis,prob11,22,204,139,14,33,0,0,0,0,2a,0.02,0.0499,2.6921,0.0001,2.7816,OK
+diagnosis,satprob11,,,,,,,,,,,,,,,,ERROR: RuntimeError: plasp translation failed for benchmarks/unsolve-ipc-2016/domains/FINAL/diagnosis/dom11.pddl + benchm
+diagnosis,prob12,24,199,99,15,26,0,0,0,0,2a,0.0184,0.0451,0.411,0.0001,0.4906,OK
+diagnosis,satprob12,,,,,,,,,,,,,,,,ERROR: RuntimeError: plasp translation failed for benchmarks/unsolve-ipc-2016/domains/FINAL/diagnosis/dom12.pddl + benchm
+diagnosis,prob13,36,399,232,27,67,0,0,0,0,2a,0.0914,0.1994,0.5731,0.0002,0.9465,OK
+diagnosis,satprob13,,,,,,,,,,,,,,,,ERROR: RuntimeError: plasp translation failed for benchmarks/unsolve-ipc-2016/domains/FINAL/diagnosis/dom13.pddl + benchm
+diagnosis,prob14,28,314,152,19,38,0,0,0,0,2a,0.0413,0.1141,1.1571,0.0003,1.3569,OK
+diagnosis,satprob14,,,,,,,,,,,,,,,,ERROR: RuntimeError: plasp translation failed for benchmarks/unsolve-ipc-2016/domains/FINAL/diagnosis/dom14.pddl + benchm
+diagnosis,prob15,24,240,155,14,35,0,0,0,0,2a,0.0281,0.0585,0.4049,0.0001,0.5167,OK
+diagnosis,satprob15,,,,,,,,,,,,,,,,ERROR: RuntimeError: plasp translation failed for benchmarks/unsolve-ipc-2016/domains/FINAL/diagnosis/dom15.pddl + benchm
+diagnosis,prob16,36,457,257,20,32,8,28,8,56,2a,0.1061,0.2664,2.0774,0.0006,2.542,OK
+diagnosis,satprob16,,,,,,,,,,,,,,,,ERROR: RuntimeError: plasp translation failed for benchmarks/unsolve-ipc-2016/domains/FINAL/diagnosis/dom16.pddl + benchm
+diagnosis,prob17,24,214,120,15,27,0,0,0,0,2a,0.0227,0.0486,0.3595,0.0001,0.4512,OK
+diagnosis,satprob17,,,,,,,,,,,,,,,,ERROR: RuntimeError: plasp translation failed for benchmarks/unsolve-ipc-2016/domains/FINAL/diagnosis/dom17.pddl + benchm
+diagnosis,prob18,,,,,,,,,,,,,,,,TIMEOUT
+diagnosis,satprob18,,,,,,,,,,,,,,,,ERROR: RuntimeError: plasp translation failed for benchmarks/unsolve-ipc-2016/domains/FINAL/diagnosis/dom18.pddl + benchm
+diagnosis,prob19,24,214,120,15,27,0,0,0,0,2a,0.0231,0.0462,0.3755,0.0001,0.4645,OK
+diagnosis,satprob19,,,,,,,,,,,,,,,,ERROR: RuntimeError: plasp translation failed for benchmarks/unsolve-ipc-2016/domains/FINAL/diagnosis/dom19.pddl + benchm
+diagnosis,prob20,,,,,,,,,,,,,,,,TIMEOUT
+diagnosis,satprob20,,,,,,,,,,,,,,,,ERROR: RuntimeError: plasp translation failed for benchmarks/unsolve-ipc-2016/domains/FINAL/diagnosis/dom20.pddl + benchm

@@ -1,31 +1,31 @@
-domain,problem,num_goals,num_props,num_operators,ur_scope,ur_struct,mx_scope,mx_struct,gs_scope,gs_struct,category,time_s,status
-cave-diving,prob01,3,161,4732,0,78,0,0,0,0,consistent,2.69,OK
-cave-diving,satprob01,3,183,5806,0,92,0,0,0,0,consistent,2.99,OK
-cave-diving,prob02,3,141,3758,0,66,0,0,0,0,consistent,1.72,OK
-cave-diving,satprob02,,,,,,,,,,,0.08,ERROR: RuntimeError: plasp translation failed for benchmarks/unsolve-ipc-2016/domains/FINAL/cave-diving/dom02.pddl + benc
-cave-diving,prob03,3,123,2884,0,56,0,0,0,0,consistent,1.41,OK
-cave-diving,satprob03,,,,,,,,,,,0.08,ERROR: RuntimeError: plasp translation failed for benchmarks/unsolve-ipc-2016/domains/FINAL/cave-diving/dom03.pddl + benc
-cave-diving,prob04,,,,,,,,,,,120.11,TIMEOUT
-cave-diving,satprob04,,,,,,,,,,,0.08,ERROR: RuntimeError: plasp translation failed for benchmarks/unsolve-ipc-2016/domains/FINAL/cave-diving/dom04.pddl + benc
-cave-diving,prob05,3,81,862,1,49,0,0,0,0,2a,0.62,OK
-cave-diving,satprob05,,,,,,,,,,,0.08,ERROR: RuntimeError: plasp translation failed for benchmarks/unsolve-ipc-2016/domains/FINAL/cave-diving/dom05.pddl + benc
-cave-diving,prob06,,,,,,,,,,,120.15,TIMEOUT
-cave-diving,prob07,6,389,27884,0,186,0,0,0,0,consistent,40.2,OK
-cave-diving,prob08,6,269,16056,0,117,0,0,0,0,consistent,16.49,OK
-cave-diving,prob09,,,,,,,,,,,120.12,TIMEOUT
-cave-diving,prob10,,,,,,,,,,,120.11,TIMEOUT
-cave-diving,prob11,,,,,,,,,,,120.15,TIMEOUT
-cave-diving,prob12,5,362,24996,0,177,0,0,0,0,consistent,33.2,OK
-cave-diving,prob13,5,269,16056,0,117,0,0,0,0,consistent,17.84,OK
-cave-diving,prob14,5,194,8916,0,75,0,0,0,0,consistent,8.28,OK
-cave-diving,prob15,,,,,,,,,,,120.11,TIMEOUT
-cave-diving,prob16,,,,,,,,,,,121.44,TIMEOUT
-cave-diving,prob17,,,,,,,,,,,120.77,TIMEOUT
-cave-diving,prob18,,,,,,,,,,,120.46,TIMEOUT
-cave-diving,prob19,,,,,,,,,,,120.23,TIMEOUT
-cave-diving,prob20,,,,,,,,,,,120.14,TIMEOUT
-cave-diving,prob21,,,,,,,,,,,120.36,TIMEOUT
-cave-diving,prob22,,,,,,,,,,,120.36,TIMEOUT
-cave-diving,prob23,,,,,,,,,,,120.27,TIMEOUT
-cave-diving,prob24,,,,,,,,,,,120.13,TIMEOUT
-cave-diving,prob25,,,,,,,,,,,120.13,TIMEOUT
+domain,problem,num_goals,num_props,num_operators,ur_scope,ur_struct,mx_scope,mx_struct,gs_scope,gs_struct,category,time_translate_s,time_ground_s,time_solve_s,time_extract_s,time_total_s,status
+cave-diving,prob01,3,161,4732,0,78,0,0,0,0,consistent,0.0047,0.7743,1.7452,0.0001,2.5341,OK
+cave-diving,satprob01,3,183,5806,0,92,0,0,0,0,consistent,0.0046,0.9322,1.9476,0.0001,2.8941,OK
+cave-diving,prob02,3,141,3758,0,66,0,0,0,0,consistent,0.0047,0.5635,1.0549,0.0001,1.631,OK
+cave-diving,satprob02,,,,,,,,,,,,,,,,ERROR: RuntimeError: plasp translation failed for benchmarks/unsolve-ipc-2016/domains/FINAL/cave-diving/dom02.pddl + benc
+cave-diving,prob03,3,123,2884,0,56,0,0,0,0,consistent,0.005,0.421,0.8432,0.0,1.2763,OK
+cave-diving,satprob03,,,,,,,,,,,,,,,,ERROR: RuntimeError: plasp translation failed for benchmarks/unsolve-ipc-2016/domains/FINAL/cave-diving/dom03.pddl + benc
+cave-diving,prob04,,,,,,,,,,,,,,,,TIMEOUT
+cave-diving,satprob04,,,,,,,,,,,,,,,,ERROR: RuntimeError: plasp translation failed for benchmarks/unsolve-ipc-2016/domains/FINAL/cave-diving/dom04.pddl + benc
+cave-diving,prob05,3,81,862,1,49,0,0,0,0,2a,0.005,0.1024,0.4335,0.0,0.5449,OK
+cave-diving,satprob05,,,,,,,,,,,,,,,,ERROR: RuntimeError: plasp translation failed for benchmarks/unsolve-ipc-2016/domains/FINAL/cave-diving/dom05.pddl + benc
+cave-diving,prob06,,,,,,,,,,,,,,,,TIMEOUT
+cave-diving,prob07,6,389,27884,0,186,0,0,0,0,consistent,0.0059,4.9541,34.9651,0.0004,39.9562,OK
+cave-diving,prob08,6,269,16056,0,117,0,0,0,0,consistent,0.0057,2.9926,13.3232,0.0005,16.3438,OK
+cave-diving,prob09,,,,,,,,,,,,,,,,TIMEOUT
+cave-diving,prob10,,,,,,,,,,,,,,,,TIMEOUT
+cave-diving,prob11,,,,,,,,,,,,,,,,TIMEOUT
+cave-diving,prob12,5,362,24996,0,177,0,0,0,0,consistent,0.0061,4.3916,27.9326,0.0005,32.3582,OK
+cave-diving,prob13,5,269,16056,0,117,0,0,0,0,consistent,0.0061,3.0535,14.5195,0.0004,17.6004,OK
+cave-diving,prob14,5,194,8916,0,75,0,0,0,0,consistent,0.0061,1.6154,6.5169,0.0002,8.1525,OK
+cave-diving,prob15,,,,,,,,,,,,,,,,TIMEOUT
+cave-diving,prob16,,,,,,,,,,,,,,,,TIMEOUT
+cave-diving,prob17,,,,,,,,,,,,,,,,TIMEOUT
+cave-diving,prob18,,,,,,,,,,,,,,,,TIMEOUT
+cave-diving,prob19,,,,,,,,,,,,,,,,TIMEOUT
+cave-diving,prob20,,,,,,,,,,,,,,,,TIMEOUT
+cave-diving,prob21,,,,,,,,,,,,,,,,TIMEOUT
+cave-diving,prob22,,,,,,,,,,,,,,,,TIMEOUT
+cave-diving,prob23,,,,,,,,,,,,,,,,TIMEOUT
+cave-diving,prob24,,,,,,,,,,,,,,,,TIMEOUT
+cave-diving,prob25,,,,,,,,,,,,,,,,TIMEOUT

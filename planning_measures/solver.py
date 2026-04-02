@@ -3,6 +3,7 @@ Clingo solver wrapper for ASP-based computation.
 """
 
 import logging
+import time
 from collections.abc import Callable
 from pathlib import Path
 
@@ -23,7 +24,7 @@ def solve_brave(
     horizon: int,
     on_atom: Callable[[str, tuple], None],
     use_bridge: bool = False,
-) -> bool:
+) -> tuple[bool, float, float]:
     """
     Run brave reasoning (union of all answer sets).
 
@@ -34,7 +35,7 @@ def solve_brave(
         use_bridge: If True, load the plasp bridge encoding (for plasp-translated input)
 
     Returns:
-        True if satisfiable, False otherwise
+        Tuple of (satisfiable, ground_time, solve_time) where times are in seconds.
     """
     args = [
         f"-c horizon={horizon}",
@@ -53,7 +54,9 @@ def solve_brave(
     ctl.load(str(REACHABILITY_LP))
     ctl.load(str(problem_path))
 
+    t0 = time.monotonic()
     ctl.ground([("base", [])])
+    t_ground = time.monotonic() - t0
 
     satisfiable = False
     atom_count = 0
@@ -69,11 +72,15 @@ def solve_brave(
             )
             on_atom(atom.name, solve_args)
 
+    t1 = time.monotonic()
     ctl.solve(on_model=on_model)
+    t_solve = time.monotonic() - t1
 
     logger.info(
-        "Solve complete: %s (%d atoms)",
+        "Solve complete: %s (%d atoms, ground=%.3fs, solve=%.3fs)",
         "SAT" if satisfiable else "UNSAT",
         atom_count,
+        t_ground,
+        t_solve,
     )
-    return satisfiable
+    return satisfiable, t_ground, t_solve

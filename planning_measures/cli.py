@@ -37,8 +37,8 @@ def _compute_worker(queue, problem, domain, horizon):
     try:
         from planning_measures import compute_measures as _compute
 
-        profile = _compute(problem, domain_path=domain, horizon=horizon)
-        queue.put(("ok", profile))
+        profile, timing = _compute(problem, domain_path=domain, horizon=horizon)
+        queue.put(("ok", (profile, timing)))
     except Exception as e:
         queue.put(("error", f"{type(e).__name__}: {e}"))
 
@@ -53,7 +53,7 @@ def cmd_compute(args):
 
     print(f"Computing measures for {path.name}...", flush=True)
 
-    start = time.time()
+    start = time.monotonic()
     timeout = args.timeout
 
     if timeout > 0:
@@ -74,7 +74,7 @@ def cmd_compute(args):
         if proc.is_alive():
             proc.kill()
             proc.join()
-            elapsed = time.time() - start
+            elapsed = time.monotonic() - start
             print(f"\nTimed out after {elapsed:.1f}s", file=sys.stderr)
             sys.exit(1)
 
@@ -82,15 +82,21 @@ def cmd_compute(args):
         if status == "error":
             print(f"\n{value}", file=sys.stderr)
             sys.exit(1)
-        profile = value
+        profile, timing = value
     else:
-        profile = compute_measures(path, domain_path=domain_path, horizon=args.horizon)
-
-    elapsed = time.time() - start
+        profile, timing = compute_measures(
+            path, domain_path=domain_path, horizon=args.horizon
+        )
 
     print()
     print(profile.summary())
-    print(f"\nComputed in {elapsed:.3f}s")
+    print("\nTiming breakdown:")
+    if timing.translate_s > 0:
+        print(f"  Translation: {timing.translate_s:.3f}s")
+    print(f"  Grounding:   {timing.ground_s:.3f}s")
+    print(f"  Solving:     {timing.solve_s:.3f}s")
+    print(f"  Extraction:  {timing.extract_s:.3f}s")
+    print(f"  Total:       {timing.total_s:.3f}s")
 
 
 def cmd_batch(args):

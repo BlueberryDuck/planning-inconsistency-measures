@@ -15,11 +15,12 @@ import logging
 import shutil
 import subprocess
 import tempfile
+import time
 from collections.abc import Callable
 from pathlib import Path
 
 from .pddl_preprocessor import strip_costs
-from .profile import MeasureProfile
+from .profile import MeasureProfile, TimingProfile
 from .solver import solve_brave
 
 logger = logging.getLogger(__name__)
@@ -29,7 +30,7 @@ def compute_measures(
     problem_path: Path | str,
     horizon: int = 20,
     domain_path: Path | str | None = None,
-) -> MeasureProfile:
+) -> tuple[MeasureProfile, TimingProfile]:
     """
     Compute all six inconsistency measures for a planning problem.
 
@@ -47,39 +48,63 @@ def compute_measures(
                      is used to translate PDDL to ASP.
 
     Returns:
-        MeasureProfile containing all six measure values
+        Tuple of (MeasureProfile, TimingProfile) containing all six
+        measure values and per-phase timing breakdown.
 
     Raises:
         FileNotFoundError: If any input file doesn't exist
         RuntimeError: If ASP solving or plasp translation fails
     """
+    t_total_start = time.monotonic()
     problem_path = Path(problem_path)
     if not problem_path.exists():
         raise FileNotFoundError(f"Problem file not found: {problem_path}")
 
     logger.info("Computing measures for %s (horizon=%d)", problem_path.name, horizon)
 
+    t_translate = 0.0
     if domain_path is not None:
         # PDDL mode: preprocess and translate via plasp
         domain_path = Path(domain_path)
         if not domain_path.exists():
             raise FileNotFoundError(f"Domain file not found: {domain_path}")
 
+        t0 = time.monotonic()
         problem_path, use_bridge, cleanup = _translate_pddl(domain_path, problem_path)
+        t_translate = time.monotonic() - t0
     else:
         # ASP mode: use pre-translated .lp file directly
         use_bridge = False
         cleanup = None
 
     try:
-        data = _collect_brave(problem_path, horizon, use_bridge)
+        data, t_ground, t_solve = _collect_brave(problem_path, horizon, use_bridge)
     finally:
         if cleanup is not None:
             cleanup()
 
+    t0 = time.monotonic()
     profile = _measures_from_data(data)
+    t_extract = time.monotonic() - t0
+
+    timing = TimingProfile(
+        translate_s=t_translate,
+        ground_s=t_ground,
+        solve_s=t_solve,
+        extract_s=t_extract,
+        total_s=time.monotonic() - t_total_start,
+    )
+
     logger.debug("Result: %s (category=%s)", profile, profile.category)
-    return profile
+    logger.debug(
+        "Timing: translate=%.3fs ground=%.3fs solve=%.3fs extract=%.3fs total=%.3fs",
+        timing.translate_s,
+        timing.ground_s,
+        timing.solve_s,
+        timing.extract_s,
+        timing.total_s,
+    )
+    return profile, timing
 
 
 def _translate_pddl(
@@ -148,8 +173,14 @@ def _measures_from_data(data: dict) -> MeasureProfile:
     )
 
 
-def _collect_brave(problem_path: Path, horizon: int, use_bridge: bool) -> dict:
-    """Collect all measure data from a single brave reasoning pass."""
+def _collect_brave(
+    problem_path: Path, horizon: int, use_bridge: bool
+) -> tuple[dict, float, float]:
+    """Collect all measure data from a single brave reasoning pass.
+
+    Returns:
+        Tuple of (data_dict, ground_time, solve_time).
+    """
     data = {
         "goals": set(),
         "props": set(),
@@ -175,7 +206,10 @@ def _collect_brave(problem_path: Path, horizon: int, use_bridge: bool) -> dict:
         elif name == "g2_after_g1_witness" and len(args) == 2:
             data["g2_after_g1"].add(args)
 
-    if not solve_brave(problem_path, horizon, on_atom, use_bridge=use_bridge):
+    satisfiable, t_ground, t_solve = solve_brave(
+        problem_path, horizon, on_atom, use_bridge=use_bridge
+    )
+    if not satisfiable:
         raise RuntimeError(f"ASP solving failed for {problem_path}")
 
     logger.debug(
@@ -187,7 +221,7 @@ def _collect_brave(problem_path: Path, horizon: int, use_bridge: bool) -> dict:
         len(data["coexist"]),
         len(data["g2_after_g1"]),
     )
-    return data
+    return data, t_ground, t_solve
 
 
 def _compute_mutex(

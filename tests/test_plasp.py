@@ -27,17 +27,18 @@ class TestPlaspPipeline:
 
     def test_locked_door_pddl(self):
         """Locked Door via PDDL should match .lp scenario."""
-        profile = compute_measures(
+        profile, timing = compute_measures(
             PDDL_DIR / "locked_door/problem01.pddl",
             domain_path=PDDL_DIR / "locked_door/domain.pddl",
         )
         assert profile.ur_scope == 1
         assert profile.mx_scope == 0
         assert profile.gs_scope == 0
+        assert timing.translate_s > 0  # PDDL path exercises plasp translation
 
     def test_trust_travel_pddl(self):
         """Trust and Travel via PDDL should match .lp scenario."""
-        profile = compute_measures(
+        profile, _ = compute_measures(
             PDDL_DIR / "trust_travel/problem01.pddl",
             domain_path=PDDL_DIR / "trust_travel/domain.pddl",
         )

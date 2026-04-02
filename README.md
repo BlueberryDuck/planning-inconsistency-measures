@@ -56,13 +56,14 @@ With Docker: prefix commands with `./run.sh` (e.g., `./run.sh planning-measures 
 from planning_measures import compute_measures
 
 # From PDDL files (uses plasp for translation)
-profile = compute_measures("problem.pddl", domain_path="domain.pddl", horizon=20)
+profile, timing = compute_measures("problem.pddl", domain_path="domain.pddl", horizon=20)
 print(profile)           # (1,3,0,0,0,0)
 print(profile.category)  # "2a"
 print(profile.summary()) # Detailed breakdown
+print(timing.ground_s)   # Grounding time in seconds
 
 # From pre-translated ASP file
-profile = compute_measures("problem.lp", horizon=20)
+profile, timing = compute_measures("problem.lp", horizon=20)
 
 ```
 
@@ -81,7 +82,7 @@ run_benchmark('benchmarks/unsolve-ipc-2016/domains/FINAL/diagnosis', 'results/di
 "
 ```
 
-The runner auto-discovers domain/problem pairs using IPC naming conventions (`domain.pddl` + `prob*.pddl`, or numbered `dom01.pddl` + `prob01.pddl`). Output is a CSV with columns: `domain, problem, num_goals, num_props, num_operators, ur_scope, ur_struct, mx_scope, mx_struct, gs_scope, gs_struct, category, time_s, status`.
+The runner auto-discovers domain/problem pairs using IPC naming conventions (`domain.pddl` + `prob*.pddl`, or numbered `dom01.pddl` + `prob01.pddl`). Output is a CSV with columns: `domain, problem, num_goals, num_props, num_operators, ur_scope, ur_struct, mx_scope, mx_struct, gs_scope, gs_struct, category, time_translate_s, time_ground_s, time_solve_s, time_extract_s, time_total_s, status`.
 
 **Compatible IPC 2016 domains** (within 120s timeout): `diagnosis`, `pegsol-row5`, `bottleneck`, `cave-diving`, `document-transfer`, `chessboard-pebbling`. The `3unsat` domain from the Eriksson benchmarks is also compatible. Other domains timeout due to grounding complexity. See the thesis (Ch5/Ch6) for details.
 
@@ -120,8 +121,8 @@ planning-inconsistency-measures/
 │   ├── batch.py                 # Batch benchmark runner (CSV output)
 │   ├── cli.py                   # CLI (planning-measures command)
 │   ├── measures.py              # Core computation (single brave pass)
-│   ├── pddl_preprocessor.py    # Strips action costs from PDDL for plasp
-│   ├── profile.py               # MeasureProfile dataclass
+│   ├── pddl_preprocessor.py     # Strips action costs from PDDL for plasp
+│   ├── profile.py               # MeasureProfile and TimingProfile dataclasses
 │   └── solver.py                # Clingo wrapper (brave reasoning)
 ├── results/                     # Benchmark experiment outputs (h=20, t=120s)
 ├── tests/
@@ -172,6 +173,8 @@ The PDDL pipeline:
 3. **Bridge encoding**: maps plasp vocabulary to internal predicates
 4. **Brave reasoning**: Clingo explores state traces with `--enum-mode=brave`, computing the union of atoms across all answer sets
 5. **Measure extraction**: Python computes P1 from set difference on `true_reachable`, P2/P3 from witness absence
+
+Each phase is individually timed (`TimingProfile`), with grounding and solving measured separately to identify bottlenecks.
 
 ## Configuration
 
