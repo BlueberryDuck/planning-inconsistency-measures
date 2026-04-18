@@ -1,5 +1,4 @@
 % Scenario 6: Rival Alliances
-% Thesis Reference: Section 3.2.3
 % Expected: I_UR=(0,0), I_MX=(2,1), I_GS=(2,2)
 %
 % Symmetric sequencing conflict: each alliance blocks the other.

@@ -9,10 +9,11 @@ import logging
 import multiprocessing as mp
 import sys
 import time
+from multiprocessing.queues import Queue
 from pathlib import Path
 
-from planning_measures import compute_measures
-from planning_measures.batch import run_benchmark
+from . import compute_measures
+from .batch import run_benchmark
 
 
 def _check_path(path: Path) -> None:
@@ -32,18 +33,18 @@ def _check_path(path: Path) -> None:
     sys.exit(1)
 
 
-def _compute_worker(queue, problem, domain, horizon):
+def _compute_worker(
+    queue: Queue, problem: str, domain: str | None, horizon: int
+) -> None:
     """Child process for timeout-protected compute."""
     try:
-        from planning_measures import compute_measures as _compute
-
-        profile, timing = _compute(problem, domain_path=domain, horizon=horizon)
+        profile, timing = compute_measures(problem, domain_path=domain, horizon=horizon)
         queue.put(("ok", (profile, timing)))
     except Exception as e:
         queue.put(("error", f"{type(e).__name__}: {e}"))
 
 
-def cmd_compute(args):
+def cmd_compute(args: argparse.Namespace) -> None:
     """Compute measures for a single problem."""
     path = Path(args.problem)
     _check_path(path)
@@ -99,7 +100,7 @@ def cmd_compute(args):
     print(f"  Total:       {timing.total_s:.3f}s")
 
 
-def cmd_batch(args):
+def cmd_batch(args: argparse.Namespace) -> None:
     """Batch process a benchmark directory."""
     logging.getLogger("planning_measures.batch").setLevel(logging.INFO)
 
@@ -110,7 +111,8 @@ def cmd_batch(args):
     run_benchmark(input_dir, output_path, horizon=args.horizon, timeout=args.timeout)
 
 
-def main():
+def main() -> None:
+    """Parse arguments and dispatch to the selected subcommand."""
     logging.basicConfig(level=logging.WARNING, format="%(name)s: %(message)s")
 
     parser = argparse.ArgumentParser(

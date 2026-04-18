@@ -1,5 +1,7 @@
 # Test Scenarios
 
+_Part of [Planning Inconsistency Measures](../../README.md)._
+
 Hand-crafted ASP scenarios for verifying the planning inconsistency measures (P1-P3).
 
 ## Scenario Index
@@ -115,7 +117,7 @@ Expected output:
 tests/test_measures.py::test_scenario_profile[p1_unreachability/locked_door-expected0] PASSED
 tests/test_measures.py::test_scenario_profile[p1_unreachability/bank_vault-expected1] PASSED
 ...
-36 passed
+38 passed
 ```
 
 ## Adding New Scenarios

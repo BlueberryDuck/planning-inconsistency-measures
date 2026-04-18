@@ -5,8 +5,8 @@
 % d appears unreachable. With horizon >= 3, d is reachable
 % and the profile is consistent.
 %
-% Expected at horizon=2: (1, 1, 0, 0, 0, 0) — d unreachable
-% Expected at horizon=3: (0, 0, 0, 0, 0, 0) — consistent
+% Expected at horizon=2: (1, 1, 0, 0, 0, 0) - d unreachable
+% Expected at horizon=3: (0, 0, 0, 0, 0, 0) - consistent
 
 init(a).
 goal(d).

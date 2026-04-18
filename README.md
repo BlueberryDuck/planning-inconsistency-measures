@@ -2,7 +2,7 @@
 
 ASP/Python implementation of diagnostic measures for classical planning problems.
 
-This implementation accompanies the Master's thesis _Inconsistency Measurement for Classical Planning Problems_ by Sebastian Bunge (FernUniversität in Hagen, 2026).
+This implementation accompanies the Master's thesis _Inconsistency Measurement for Classical Planning Problems_ by Sebastian Bunge (FernUniversität in Hagen, 2026). Thesis sources: [BlueberryDuck/thesis-inconsistency-planning](https://github.com/BlueberryDuck/thesis-inconsistency-planning).
 
 ## Overview
 
@@ -84,7 +84,7 @@ run_benchmark('benchmarks/unsolve-ipc-2016/domains/FINAL/diagnosis', 'results/di
 
 The runner auto-discovers domain/problem pairs using IPC naming conventions (`domain.pddl` + `prob*.pddl`, or numbered `dom01.pddl` + `prob01.pddl`). Output is a CSV with columns: `domain, problem, num_goals, num_props, num_operators, ur_scope, ur_struct, mx_scope, mx_struct, gs_scope, gs_struct, category, time_translate_s, time_ground_s, time_solve_s, time_extract_s, time_total_s, status`.
 
-**Compatible IPC 2016 domains** (within 120s timeout): `diagnosis`, `pegsol-row5`, `bottleneck`, `cave-diving`, `document-transfer`, `chessboard-pebbling`. The `3unsat` domain from the Eriksson benchmarks is also compatible. Other domains timeout due to grounding complexity. See the thesis (Ch5/Ch6) for details.
+**Compatible IPC 2016 domains** (within 120s timeout): `diagnosis`, `pegsol-row5`, `bottleneck`, `cave-diving`, `document-transfer`, `chessboard-pebbling`. The `3unsat` domain from the Eriksson benchmarks is also compatible. Other domains timeout due to grounding complexity. See the thesis for details.
 
 To run all compatible domains at once, use `skip_domains` to exclude known-incompatible ones:
 
@@ -107,6 +107,31 @@ run_benchmark(
 pytest tests/ -v
 ```
 
+## Architecture
+
+Two independent layers:
+
+- **Library** (`planning_measures/`): importable Python package with `compute_measures()`. Uses Python `logging` (no output unless caller configures a handler). Dependencies: clingo (Python), plasp (external).
+- **CLI** (`planning_measures/cli.py`): `planning-measures` console script, installed via `pyproject.toml` entry point. Not imported by library or tests.
+
+The PDDL pipeline:
+
+1. **Preprocessing**: strips action costs from PDDL (irrelevant to inconsistency measures)
+2. **plasp**: translates PDDL to lifted ASP representation
+3. **Bridge encoding**: maps plasp vocabulary to internal predicates
+4. **Brave reasoning**: Clingo explores state traces with `--enum-mode=brave`, computing the union of atoms across all answer sets
+5. **Measure extraction**: Python computes P1 from set difference on `true_reachable`, P2/P3 from witness absence
+
+Each phase is individually timed (`TimingProfile`), with grounding and solving measured separately to identify bottlenecks. Timeouts are handled at the CLI/batch level (not the library API) using subprocess-based process killing.
+
+## Test Scenarios
+
+Twelve hand-crafted ASP scenarios cover P1 (unreachability), P2 (mutex), P3 (sequencing), mixed conflicts, and edge cases. Each scenario has an expected `MeasureProfile` asserted by `tests/test_measures.py`.
+
+Profile format: `(ur_scope, ur_struct, mx_scope, mx_struct, gs_scope, gs_struct)`. The profile also exposes problem size metadata (`num_goals`, `num_props`, `num_operators`).
+
+See [tests/scenarios/README.md](tests/scenarios/README.md) for the full catalog, expected profiles, and the scenario file format.
+
 ## Project Structure
 
 ```
@@ -124,64 +149,17 @@ planning-inconsistency-measures/
 │   ├── pddl_preprocessor.py     # Strips action costs from PDDL for plasp
 │   ├── profile.py               # MeasureProfile and TimingProfile dataclasses
 │   └── solver.py                # Clingo wrapper (brave reasoning)
-├── results/                     # Benchmark experiment outputs (h=20, t=120s)
+├── results/                     # Benchmark experiment outputs (see results/README.md)
 ├── tests/
-│   ├── pddl/                    # PDDL test cases
-│   ├── scenarios/               # ASP test scenarios
+│   ├── pddl/                    # PDDL test cases (see tests/pddl/README.md)
+│   ├── scenarios/               # ASP test scenarios (see tests/scenarios/README.md)
 │   ├── test_measures.py         # pytest: measure computation + hierarchy
 │   └── test_plasp.py            # pytest: plasp pipeline + preprocessor
+├── CITATION.cff                 # Citation metadata
 ├── docker-compose.yml           # Container orchestration
 ├── Dockerfile                   # Container definition
 ├── LICENSE                      # MIT License
 └── pyproject.toml               # Project config & dependencies
 ```
 
-## Test Scenarios
-
-| Scenario                           | Category | Expected Profile | Description                           |
-| ---------------------------------- | -------- | ---------------- | ------------------------------------- |
-| `edge_cases/coexisting_goals`      | Edge     | (0,0,0,0,0,0)    | Solvable, no conflicts                |
-| `edge_cases/delete_relaxation`     | Edge     | (1,1,0,0,0,0)    | Delete effects block reachability     |
-| `edge_cases/empty_goals`           | Edge     | (0,0,0,0,0,0)    | No goals defined                      |
-| `edge_cases/horizon_sensitive`     | Edge     | (0,0,0,0,0,0)\*  | Chain requires sufficient horizon     |
-| `edge_cases/negative_precondition` | Edge     | (1,1,0,0,0,0)    | Negative precondition blocks operator |
-| `edge_cases/single_goal`           | Edge     | (0,0,0,0,0,0)    | Trivial single goal                   |
-| `mixed/rival_alliances`            | Mixed    | (0,0,2,1,2,2)    | Two sequencing conflicts              |
-| `mixed/trust_travel`               | Mixed    | (0,0,2,1,2,1)    | Asymmetric sequencing conflict        |
-| `p1_unreachability/bank_vault`     | P1       | (1,7,0,0,0,0)    | Chain with multiple unreachable props |
-| `p1_unreachability/locked_door`    | P1       | (1,3,0,0,0,0)    | Goal blocked by missing prerequisite  |
-| `p2_mutex/light_switch`            | P2       | (0,0,2,1,0,0)    | Reversible toggle creates mutex       |
-| `p2_mutex/traffic_light`           | P2       | (0,0,3,3,0,0)    | Three-way mutex clique                |
-
-Profile format: `(ur_scope, ur_struct, mx_scope, mx_struct, gs_scope, gs_struct)`
-
-The profile also exposes problem size metadata: `num_goals`, `num_props`, `num_operators`.
-
-\*At default horizon=20. At horizon=2: `(1,1,0,0,0,0)` (insufficient depth).
-
-## Architecture
-
-Two independent layers:
-
-- **Library** (`planning_measures/`): importable Python package with `compute_measures()`. Uses Python `logging` (no output unless caller configures a handler). Dependencies: clingo (Python), plasp (external).
-- **CLI** (`planning_measures/cli.py`): `planning-measures` console script, installed via `pyproject.toml` entry point. Not imported by library or tests.
-
-The PDDL pipeline:
-
-1. **Preprocessing**: strips action costs from PDDL (irrelevant to inconsistency measures)
-2. **plasp**: translates PDDL to lifted ASP representation
-3. **Bridge encoding**: maps plasp vocabulary to internal predicates
-4. **Brave reasoning**: Clingo explores state traces with `--enum-mode=brave`, computing the union of atoms across all answer sets
-5. **Measure extraction**: Python computes P1 from set difference on `true_reachable`, P2/P3 from witness absence
-
-Each phase is individually timed (`TimingProfile`), with grounding and solving measured separately to identify bottlenecks.
-
-## Configuration
-
-Default horizon is 20 steps. Override via:
-
-```python
-profile = compute_measures("problem.pddl", domain_path="domain.pddl", horizon=100)
-```
-
-Timeouts are handled at the CLI/batch level (not the library API) using subprocess-based process killing.
+Subdirectory READMEs: [`encodings/`](encodings) (inline comments), [`tests/scenarios/README.md`](tests/scenarios/README.md), [`tests/pddl/README.md`](tests/pddl/README.md), [`results/README.md`](results/README.md).

@@ -116,7 +116,7 @@ def _remove_sexp(text: str, keyword: str) -> str:
                     break
             j += 1
         else:
-            # Unmatched parens — keep remainder as-is
+            # Unmatched parens, keep remainder as-is
             result.append(text[pos:])
             i = len(text)
 

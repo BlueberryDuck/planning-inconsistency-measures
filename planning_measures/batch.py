@@ -19,9 +19,11 @@ import csv
 import logging
 import multiprocessing as mp
 import re
+from multiprocessing.queues import Queue
 from pathlib import Path
 
 from .measures import compute_measures
+from .profile import MeasureProfile, TimingProfile
 
 logger = logging.getLogger(__name__)
 
@@ -113,37 +115,32 @@ def find_pddl_pairs(
     return pairs
 
 
-def _worker(queue, problem_path, domain_path, horizon):
-    """Child process: compute measures and send result via queue."""
-    try:
-        from .measures import compute_measures as _compute
-
-        profile, timing = _compute(
-            problem_path, domain_path=domain_path, horizon=horizon
-        )
-        queue.put(
-            (
-                "ok",
-                {
-                    "num_goals": profile.num_goals,
-                    "num_props": profile.num_props,
-                    "num_operators": profile.num_operators,
-                    "ur_scope": profile.ur_scope,
-                    "ur_struct": profile.ur_struct,
-                    "mx_scope": profile.mx_scope,
-                    "mx_struct": profile.mx_struct,
-                    "gs_scope": profile.gs_scope,
-                    "gs_struct": profile.gs_struct,
-                    "category": profile.category,
-                    **timing.as_dict(),
-                },
-            )
-        )
-    except Exception as e:
-        queue.put(("error", f"{type(e).__name__}: {str(e)[:100]}"))
+def _ok_result(
+    domain_name: str,
+    problem_path: Path,
+    profile: MeasureProfile,
+    timing: TimingProfile,
+) -> dict:
+    """Build an OK-status result dict from a computed profile and timing."""
+    return {
+        "domain": domain_name,
+        "problem": problem_path.stem,
+        "num_goals": profile.num_goals,
+        "num_props": profile.num_props,
+        "num_operators": profile.num_operators,
+        "ur_scope": profile.ur_scope,
+        "ur_struct": profile.ur_struct,
+        "mx_scope": profile.mx_scope,
+        "mx_struct": profile.mx_struct,
+        "gs_scope": profile.gs_scope,
+        "gs_struct": profile.gs_struct,
+        "category": profile.category,
+        **timing.as_dict(),
+        "status": "OK",
+    }
 
 
-def _empty_result(domain_name, problem_path, status):
+def _empty_result(domain_name: str, problem_path: Path, status: str) -> dict:
     """Create an error/timeout result dict with empty measure and timing fields."""
     return {
         "domain": domain_name,
@@ -167,6 +164,17 @@ def _empty_result(domain_name, problem_path, status):
     }
 
 
+def _worker(queue: Queue, problem_path: str, domain_path: str, horizon: int) -> None:
+    """Child process: compute measures and send (profile, timing) via queue."""
+    try:
+        profile, timing = compute_measures(
+            problem_path, domain_path=domain_path, horizon=horizon
+        )
+        queue.put(("ok", (profile, timing)))
+    except Exception as e:
+        queue.put(("error", f"{type(e).__name__}: {str(e)[:100]}"))
+
+
 def _compute_single(
     domain_name: str,
     domain_path: Path,
@@ -176,35 +184,18 @@ def _compute_single(
 ) -> dict:
     """Compute measures for a single problem. Returns result dict.
 
-    Uses a subprocess to enforce timeout — SIGKILL reliably kills
+    Uses a subprocess to enforce timeout, SIGKILL reliably kills
     clingo even when blocked in C extension grounding/solving.
     """
     if timeout <= 0:
-        # No timeout: run in-process
         try:
             profile, timing = compute_measures(
                 problem_path, domain_path=domain_path, horizon=horizon
             )
-            return {
-                "domain": domain_name,
-                "problem": problem_path.stem,
-                "num_goals": profile.num_goals,
-                "num_props": profile.num_props,
-                "num_operators": profile.num_operators,
-                "ur_scope": profile.ur_scope,
-                "ur_struct": profile.ur_struct,
-                "mx_scope": profile.mx_scope,
-                "mx_struct": profile.mx_struct,
-                "gs_scope": profile.gs_scope,
-                "gs_struct": profile.gs_struct,
-                "category": profile.category,
-                **timing.as_dict(),
-                "status": "OK",
-            }
+            return _ok_result(domain_name, problem_path, profile, timing)
         except Exception as e:
             return _empty_result(domain_name, problem_path, f"ERROR: {str(e)[:100]}")
 
-    # With timeout: run in a child process that can be killed
     ctx = mp.get_context("spawn")
     queue = ctx.Queue()
     proc = ctx.Process(
@@ -227,12 +218,8 @@ def _compute_single(
         )
 
     if status == "ok":
-        return {
-            "domain": domain_name,
-            "problem": problem_path.stem,
-            **value,
-            "status": "OK",
-        }
+        profile, timing = value
+        return _ok_result(domain_name, problem_path, profile, timing)
     else:
         return _empty_result(domain_name, problem_path, f"ERROR: {value}")
 

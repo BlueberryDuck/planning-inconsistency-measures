@@ -6,7 +6,7 @@ readme = "README.md"
 license = "MIT"
 authors = [{ name = "Sebastian Bunge" }]
 requires-python = ">=3.10"
-dependencies = ["clingo>=5.6.0"]
+dependencies = ["clingo==5.8.0"]
 
 [project.urls]
 Repository = "https://github.com/BlueberryDuck/planning-inconsistency-measures"

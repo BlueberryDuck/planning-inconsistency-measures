@@ -1,5 +1,4 @@
 % Scenario 2: Bank Vault
-% Thesis Reference: Section 3.2.1
 % Expected: I_UR=(1,7), I_MX=(0,0), I_GS=(0,0)
 %
 % Three parallel chains with missing root preconditions.
@@ -33,4 +32,4 @@ precond(enter, door1_open).
 precond(enter, door2_open).
 precond(enter, access_granted).
 add(enter, in_vault).
-del(enter, at_facility).
+delete(enter, at_facility).

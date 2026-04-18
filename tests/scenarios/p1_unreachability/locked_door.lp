@@ -1,5 +1,4 @@
 % Scenario 1: Locked Door
-% Thesis Reference: Section 3.2.1
 % Expected: I_UR=(1,3), I_MX=(0,0), I_GS=(0,0)
 %
 % Linear dependency chain where root (has_key) is never produced.
@@ -20,4 +19,4 @@ add(unlock, door_unlocked).
 precond(enter, at_door).
 precond(enter, door_unlocked).
 add(enter, in_room).
-del(enter, at_door).
+delete(enter, at_door).

@@ -4,11 +4,11 @@ Tests for planning inconsistency measures.
 Run with: pytest tests/ -v
 """
 
-import pytest
 from pathlib import Path
 
-from planning_measures import compute_measures, MeasureProfile, TimingProfile
+import pytest
 
+from planning_measures import MeasureProfile, TimingProfile, compute_measures
 
 SCENARIOS_DIR = Path(__file__).parent / "scenarios"
 

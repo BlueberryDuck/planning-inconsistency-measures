@@ -59,13 +59,11 @@ def solve_brave(
     t_ground = time.monotonic() - t0
 
     satisfiable = False
-    atom_count = 0
 
     def on_model(model):
-        nonlocal satisfiable, atom_count
+        nonlocal satisfiable
         satisfiable = True
         for atom in model.symbols(shown=True):
-            atom_count += 1
             solve_args = tuple(
                 arg.number if arg.type == clingo.SymbolType.Number else str(arg)
                 for arg in atom.arguments
@@ -77,9 +75,8 @@ def solve_brave(
     t_solve = time.monotonic() - t1
 
     logger.info(
-        "Solve complete: %s (%d atoms, ground=%.3fs, solve=%.3fs)",
+        "Solve complete: %s (ground=%.3fs, solve=%.3fs)",
         "SAT" if satisfiable else "UNSAT",
-        atom_count,
         t_ground,
         t_solve,
     )

@@ -14,8 +14,8 @@ Usage with PDDL files (requires plasp):
     profile, timing = compute_measures("problem.pddl", domain_path="domain.pddl")
 """
 
-from .profile import MeasureProfile, TimingProfile
 from .measures import compute_measures
+from .profile import MeasureProfile, TimingProfile
 
 __all__ = ["MeasureProfile", "TimingProfile", "compute_measures"]
 __version__ = "1.0.0"
