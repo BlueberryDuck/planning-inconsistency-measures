@@ -12,10 +12,25 @@ Usage with pre-translated ASP files:
 
 Usage with PDDL files (requires plasp):
     profile, timing = compute_measures("problem.pddl", domain_path="domain.pddl")
+
+Timeout-protected execution uses a discriminated `ExecutionResult` and a
+subprocess when timeout > 0:
+    from planning_measures import compute_with_timeout
+
+    result = compute_with_timeout("problem.pddl", "domain.pddl", horizon=20, timeout=60)
+    if result.status == "ok":
+        profile, timing = result.unwrap()
 """
 
+from .execution import ExecutionResult, compute_with_timeout
 from .measures import compute_measures
 from .profile import MeasureProfile, TimingProfile
 
-__all__ = ["MeasureProfile", "TimingProfile", "compute_measures"]
+__all__ = [
+    "ExecutionResult",
+    "MeasureProfile",
+    "TimingProfile",
+    "compute_measures",
+    "compute_with_timeout",
+]
 __version__ = "1.0.0"

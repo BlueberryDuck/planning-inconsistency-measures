@@ -24,14 +24,23 @@ class TimingProfile:
     extract_s: float = 0.0
     total_s: float = 0.0
 
+    @classmethod
+    def field_names(cls) -> list[str]:
+        """Schema for timing fields in CSV/dict output (ordered)."""
+        return [
+            "time_translate_s",
+            "time_ground_s",
+            "time_solve_s",
+            "time_extract_s",
+            "time_total_s",
+        ]
+
     def as_dict(self) -> dict[str, float]:
-        """Return timing as a dict suitable for CSV output."""
+        """Return timing as a dict keyed by `field_names()` (rounded to 4dp)."""
+        attrs = ["translate_s", "ground_s", "solve_s", "extract_s", "total_s"]
         return {
-            "time_translate_s": round(self.translate_s, 4),
-            "time_ground_s": round(self.ground_s, 4),
-            "time_solve_s": round(self.solve_s, 4),
-            "time_extract_s": round(self.extract_s, 4),
-            "time_total_s": round(self.total_s, 4),
+            name: round(getattr(self, attr), 4)
+            for name, attr in zip(self.field_names(), attrs)
         }
 
 
@@ -63,6 +72,26 @@ class MeasureProfile:
     num_goals: int = 0
     num_props: int = 0
     num_operators: int = 0
+
+    @classmethod
+    def field_names(cls) -> list[str]:
+        """Schema for measure-profile fields in CSV/dict output (ordered)."""
+        return [
+            "num_goals",
+            "num_props",
+            "num_operators",
+            "ur_scope",
+            "ur_struct",
+            "mx_scope",
+            "mx_struct",
+            "gs_scope",
+            "gs_struct",
+            "category",
+        ]
+
+    def as_dict(self) -> dict:
+        """Return profile as a dict keyed by `field_names()` (category derived)."""
+        return {name: getattr(self, name) for name in self.field_names()}
 
     def as_tuple(self) -> tuple[int, int, int, int, int, int]:
         """Return profile as a 6-tuple."""

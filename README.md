@@ -2,7 +2,7 @@
 
 ASP/Python implementation of diagnostic measures for classical planning problems.
 
-This implementation accompanies the Master's thesis _Inconsistency Measurement for Classical Planning Problems_ by Sebastian Bunge (FernUniversität in Hagen, 2026). Thesis sources: [BlueberryDuck/thesis-inconsistency-planning](https://github.com/BlueberryDuck/thesis-inconsistency-planning).
+This repository implements the Master's thesis _Inconsistency Measurement for Classical Planning Problems_ by Sebastian Bunge (FernUniversität in Hagen, 2026). Thesis sources: [BlueberryDuck/thesis-inconsistency-planning](https://github.com/BlueberryDuck/thesis-inconsistency-planning).
 
 ## Overview
 
@@ -64,7 +64,20 @@ print(timing.ground_s)   # Grounding time in seconds
 
 # From pre-translated ASP file
 profile, timing = compute_measures("problem.lp", horizon=20)
+```
 
+Timeout-protected execution from Python uses `compute_with_timeout`:
+
+```python
+from planning_measures import compute_with_timeout
+
+result = compute_with_timeout("problem.pddl", "domain.pddl", horizon=20, timeout=60)
+if result.status == "ok":
+    profile, timing = result.unwrap()
+elif result.status == "timeout":
+    print(f"timed out after {result.elapsed_s:.1f}s")
+else:
+    print(f"error: {result.message}")
 ```
 
 ### Batch Benchmarking
@@ -109,9 +122,9 @@ pytest tests/ -v
 
 ## Architecture
 
-Two independent layers:
+Two layers:
 
-- **Library** (`planning_measures/`): importable Python package with `compute_measures()`. Uses Python `logging` (no output unless caller configures a handler). Dependencies: clingo (Python), plasp (external).
+- **Library** (`planning_measures/`): importable Python package with `compute_measures()` and `compute_with_timeout()`. `compute_measures()` raises on failure; `compute_with_timeout()` returns a discriminated `ExecutionResult`. Uses Python `logging` (no output unless caller configures a handler). Dependencies: clingo (Python), plasp (external).
 - **CLI** (`planning_measures/cli.py`): `planning-measures` console script, installed via `pyproject.toml` entry point. Not imported by library or tests.
 
 The PDDL pipeline:
@@ -122,7 +135,7 @@ The PDDL pipeline:
 4. **Brave reasoning**: Clingo explores state traces with `--enum-mode=brave`, computing the union of atoms across all answer sets
 5. **Measure extraction**: Python computes P1 from set difference on `true_reachable`, P2/P3 from witness absence
 
-Each phase is individually timed (`TimingProfile`), with grounding and solving measured separately to identify bottlenecks. Timeouts are handled at the CLI/batch level (not the library API) using subprocess-based process killing.
+Each phase is individually timed (`TimingProfile`), with grounding and solving measured separately to identify bottlenecks. Timeouts and CSV row composition live in `planning_measures/execution.py`, which both the CLI and batch runner use; timeout enforcement uses a subprocess + SIGKILL so Clingo can be killed reliably even during grounding.
 
 ## Test Scenarios
 
@@ -145,6 +158,7 @@ planning-inconsistency-measures/
 │   ├── __main__.py              # Enables `python -m planning_measures`
 │   ├── batch.py                 # Batch benchmark runner (CSV output)
 │   ├── cli.py                   # CLI (planning-measures command)
+│   ├── execution.py             # Timeout-protected compute + ExecutionResult + CSV row composition
 │   ├── measures.py              # Core computation (single brave pass)
 │   ├── pddl_preprocessor.py     # Strips action costs from PDDL for plasp
 │   ├── profile.py               # MeasureProfile and TimingProfile dataclasses
@@ -153,6 +167,7 @@ planning-inconsistency-measures/
 ├── tests/
 │   ├── pddl/                    # PDDL test cases (see tests/pddl/README.md)
 │   ├── scenarios/               # ASP test scenarios (see tests/scenarios/README.md)
+│   ├── test_execution.py        # pytest: compute_with_timeout + ExecutionResult
 │   ├── test_measures.py         # pytest: measure computation + hierarchy
 │   └── test_plasp.py            # pytest: plasp pipeline + preprocessor
 ├── CITATION.cff                 # Citation metadata

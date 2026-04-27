@@ -61,6 +61,30 @@ class TestMeasureProfile:
         p = MeasureProfile(1, 2, 3, 4, 5, 6)
         assert str(p) == "(1,2,3,4,5,6)"
 
+    def test_field_names_order_matches_csv(self):
+        """field_names locks the schema for CSV row composition."""
+        assert MeasureProfile.field_names() == [
+            "num_goals",
+            "num_props",
+            "num_operators",
+            "ur_scope",
+            "ur_struct",
+            "mx_scope",
+            "mx_struct",
+            "gs_scope",
+            "gs_struct",
+            "category",
+        ]
+
+    def test_as_dict_keyed_by_field_names(self):
+        """as_dict returns {field_names()[i]: value} with derived category."""
+        p = MeasureProfile(1, 3, 0, 0, 0, 0, num_goals=2, num_props=5, num_operators=4)
+        d = p.as_dict()
+        assert list(d.keys()) == MeasureProfile.field_names()
+        assert d["num_goals"] == 2
+        assert d["ur_scope"] == 1
+        assert d["category"] == "2a"
+
 
 class TestComputeMeasuresAPI:
     """Tests for the public compute_measures function."""
@@ -151,3 +175,15 @@ class TestTimingProfile:
             "time_total_s",
         }
         assert all(isinstance(v, float) for v in d.values())
+
+    def test_timing_field_names_matches_as_dict_keys(self):
+        """field_names() and as_dict() must stay paired."""
+        timing = TimingProfile(0.1, 0.2, 0.3, 0.4, 1.0)
+        assert TimingProfile.field_names() == list(timing.as_dict().keys())
+        assert TimingProfile.field_names() == [
+            "time_translate_s",
+            "time_ground_s",
+            "time_solve_s",
+            "time_extract_s",
+            "time_total_s",
+        ]

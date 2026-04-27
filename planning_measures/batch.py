@@ -17,13 +17,10 @@ Usage:
 
 import csv
 import logging
-import multiprocessing as mp
 import re
-from multiprocessing.queues import Queue
 from pathlib import Path
 
-from .measures import compute_measures
-from .profile import MeasureProfile, TimingProfile
+from .execution import CSV_FIELDS, compute_with_timeout
 
 logger = logging.getLogger(__name__)
 
@@ -115,137 +112,6 @@ def find_pddl_pairs(
     return pairs
 
 
-def _ok_result(
-    domain_name: str,
-    problem_path: Path,
-    profile: MeasureProfile,
-    timing: TimingProfile,
-) -> dict:
-    """Build an OK-status result dict from a computed profile and timing."""
-    return {
-        "domain": domain_name,
-        "problem": problem_path.stem,
-        "num_goals": profile.num_goals,
-        "num_props": profile.num_props,
-        "num_operators": profile.num_operators,
-        "ur_scope": profile.ur_scope,
-        "ur_struct": profile.ur_struct,
-        "mx_scope": profile.mx_scope,
-        "mx_struct": profile.mx_struct,
-        "gs_scope": profile.gs_scope,
-        "gs_struct": profile.gs_struct,
-        "category": profile.category,
-        **timing.as_dict(),
-        "status": "OK",
-    }
-
-
-def _empty_result(domain_name: str, problem_path: Path, status: str) -> dict:
-    """Create an error/timeout result dict with empty measure and timing fields."""
-    return {
-        "domain": domain_name,
-        "problem": problem_path.stem,
-        "num_goals": "",
-        "num_props": "",
-        "num_operators": "",
-        "ur_scope": "",
-        "ur_struct": "",
-        "mx_scope": "",
-        "mx_struct": "",
-        "gs_scope": "",
-        "gs_struct": "",
-        "category": "",
-        "time_translate_s": "",
-        "time_ground_s": "",
-        "time_solve_s": "",
-        "time_extract_s": "",
-        "time_total_s": "",
-        "status": status,
-    }
-
-
-def _worker(queue: Queue, problem_path: str, domain_path: str, horizon: int) -> None:
-    """Child process: compute measures and send (profile, timing) via queue."""
-    try:
-        profile, timing = compute_measures(
-            problem_path, domain_path=domain_path, horizon=horizon
-        )
-        queue.put(("ok", (profile, timing)))
-    except Exception as e:
-        queue.put(("error", f"{type(e).__name__}: {str(e)[:100]}"))
-
-
-def _compute_single(
-    domain_name: str,
-    domain_path: Path,
-    problem_path: Path,
-    horizon: int,
-    timeout: int = 0,
-) -> dict:
-    """Compute measures for a single problem. Returns result dict.
-
-    Uses a subprocess to enforce timeout, SIGKILL reliably kills
-    clingo even when blocked in C extension grounding/solving.
-    """
-    if timeout <= 0:
-        try:
-            profile, timing = compute_measures(
-                problem_path, domain_path=domain_path, horizon=horizon
-            )
-            return _ok_result(domain_name, problem_path, profile, timing)
-        except Exception as e:
-            return _empty_result(domain_name, problem_path, f"ERROR: {str(e)[:100]}")
-
-    ctx = mp.get_context("spawn")
-    queue = ctx.Queue()
-    proc = ctx.Process(
-        target=_worker,
-        args=(queue, str(problem_path), str(domain_path), horizon),
-    )
-    proc.start()
-    proc.join(timeout=timeout)
-
-    if proc.is_alive():
-        proc.kill()
-        proc.join()
-        return _empty_result(domain_name, problem_path, "TIMEOUT")
-
-    try:
-        status, value = queue.get_nowait()
-    except Exception:
-        return _empty_result(
-            domain_name, problem_path, "ERROR: worker exited without result"
-        )
-
-    if status == "ok":
-        profile, timing = value
-        return _ok_result(domain_name, problem_path, profile, timing)
-    else:
-        return _empty_result(domain_name, problem_path, f"ERROR: {value}")
-
-
-CSV_FIELDS = [
-    "domain",
-    "problem",
-    "num_goals",
-    "num_props",
-    "num_operators",
-    "ur_scope",
-    "ur_struct",
-    "mx_scope",
-    "mx_struct",
-    "gs_scope",
-    "gs_struct",
-    "category",
-    "time_translate_s",
-    "time_ground_s",
-    "time_solve_s",
-    "time_extract_s",
-    "time_total_s",
-    "status",
-]
-
-
 def run_benchmark(
     benchmark_dir: str | Path,
     output_csv: str | Path = "results.csv",
@@ -286,28 +152,23 @@ def run_benchmark(
         for i, (domain_name, domain_path, problem_path) in enumerate(pairs, 1):
             logger.info("[%d/%d] %s/%s", i, len(pairs), domain_name, problem_path.stem)
 
-            result = _compute_single(
-                domain_name, domain_path, problem_path, horizon, timeout
-            )
-            writer.writerow(result)
+            result = compute_with_timeout(problem_path, domain_path, horizon, timeout)
+            row = result.to_csv_row(domain_name, problem_path)
+            writer.writerow(row)
             f.flush()
 
-            if result["status"] == "OK":
+            if result.status == "ok":
+                profile, timing = result.unwrap()
                 logger.info(
-                    "  (%s,%s,%s,%s,%s,%s) [total=%ss ground=%ss solve=%ss]",
-                    result["ur_scope"],
-                    result["ur_struct"],
-                    result["mx_scope"],
-                    result["mx_struct"],
-                    result["gs_scope"],
-                    result["gs_struct"],
-                    result["time_total_s"],
-                    result["time_ground_s"],
-                    result["time_solve_s"],
+                    "  %s [total=%.4fs ground=%.4fs solve=%.4fs]",
+                    profile,
+                    timing.total_s,
+                    timing.ground_s,
+                    timing.solve_s,
                 )
                 ok_count += 1
             else:
-                logger.warning("  %s", result["status"])
+                logger.warning("  %s", result.status_label())
 
     logger.info("Done: %d/%d OK. Results: %s", ok_count, len(pairs), output_csv)
 
