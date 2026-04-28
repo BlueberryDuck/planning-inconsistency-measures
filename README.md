@@ -56,28 +56,43 @@ With Docker: prefix commands with `./run.sh` (e.g., `./run.sh planning-measures 
 from planning_measures import compute_measures
 
 # From PDDL files (uses plasp for translation)
-profile, timing = compute_measures("problem.pddl", domain_path="domain.pddl", horizon=20)
-print(profile)           # (1,3,0,0,0,0)
-print(profile.category)  # "2a"
-print(profile.summary()) # Detailed breakdown
-print(timing.ground_s)   # Grounding time in seconds
+result = compute_measures("problem.pddl", domain_path="domain.pddl", horizon=20)
+print(result.profile)            # (1,3,0,0,0,0)
+print(result.profile.category)   # "2a"
+print(result.size.num_goals)     # Problem size cardinalities
+print(result.timing.ground_s)    # Grounding time in seconds
+print(result.summary())          # Human-readable breakdown
 
 # From pre-translated ASP file
-profile, timing = compute_measures("problem.lp", horizon=20)
+result = compute_measures("problem.lp", horizon=20)
 ```
+
+`compute_measures` returns a `MeasureResult` containing the diagnostic `MeasureProfile`, the input's `ProblemSize`, and a `TimingProfile`.
 
 Timeout-protected execution from Python uses `compute_with_timeout`:
 
 ```python
 from planning_measures import compute_with_timeout
 
-result = compute_with_timeout("problem.pddl", "domain.pddl", horizon=20, timeout=60)
-if result.status == "ok":
-    profile, timing = result.unwrap()
-elif result.status == "timeout":
-    print(f"timed out after {result.elapsed_s:.1f}s")
+execution = compute_with_timeout("problem.pddl", "domain.pddl", horizon=20, timeout=60)
+if execution.status == "ok":
+    result = execution.unwrap()
+    print(result.profile, result.size, result.timing)
+elif execution.status == "timeout":
+    print(f"timed out after {execution.elapsed_s:.1f}s")
 else:
-    print(f"error: {result.message}")
+    print(f"error: {execution.message}")
+```
+
+Pure extraction is also exposed for callers wiring their own pipeline:
+
+```python
+from planning_measures import BraveOutcome, extract_measures, extract_problem_size
+
+outcome = BraveOutcome(goals=..., props=..., operators=..., true_reachable=...,
+                      coexist_witness=..., g2_after_g1_witness=...)
+profile = extract_measures(outcome)
+size = extract_problem_size(outcome)
 ```
 
 ### Batch Benchmarking
@@ -124,7 +139,7 @@ pytest tests/ -v
 
 Two layers:
 
-- **Library** (`planning_measures/`): importable Python package with `compute_measures()` and `compute_with_timeout()`. `compute_measures()` raises on failure; `compute_with_timeout()` returns a discriminated `ExecutionResult`. Uses Python `logging` (no output unless caller configures a handler). Dependencies: clingo (Python), plasp (external).
+- **Library** (`planning_measures/`): importable Python package with `compute_measures()` and `compute_with_timeout()`. `compute_measures()` returns a `MeasureResult` and raises on failure; `compute_with_timeout()` returns a discriminated `ExecutionResult` carrying that `MeasureResult`. Uses Python `logging` (no output unless caller configures a handler). Dependencies: clingo (Python), plasp (external).
 - **CLI** (`planning_measures/cli.py`): `planning-measures` console script, installed via `pyproject.toml` entry point. Not imported by library or tests.
 
 The PDDL pipeline:
@@ -132,16 +147,16 @@ The PDDL pipeline:
 1. **Preprocessing**: strips action costs from PDDL (irrelevant to inconsistency measures)
 2. **plasp**: translates PDDL to lifted ASP representation
 3. **Bridge encoding**: maps plasp vocabulary to internal predicates
-4. **Brave reasoning**: Clingo explores state traces with `--enum-mode=brave`, computing the union of atoms across all answer sets
-5. **Measure extraction**: Python computes P1 from set difference on `true_reachable`, P2/P3 from witness absence
+4. **Brave reasoning**: Clingo grounds and solves with `--enum-mode=brave`, returning a bucket of atoms for each name in `extraction.KEEP_ATOMS`
+5. **Measure extraction**: `extraction.collect` shapes the buckets into a `BraveOutcome`; `extract_measures` computes P1 from set difference on `true_reachable`, P2/P3 from witness absence
 
-Each phase is individually timed (`TimingProfile`), with grounding and solving measured separately to identify bottlenecks. Timeouts and CSV row composition live in `planning_measures/execution.py`, which both the CLI and batch runner use; timeout enforcement uses a subprocess + SIGKILL so Clingo can be killed reliably even during grounding.
+Each phase is individually timed (`TimingProfile`), with grounding and solving measured separately to identify bottlenecks. The seam between the solver wrapper and measure logic is the typed `BraveOutcome` (no string-dispatch callbacks). Timeouts and CSV row composition live in `planning_measures/execution.py`, which both the CLI and batch runner use; timeout enforcement uses a subprocess + SIGKILL so Clingo can be killed reliably even during grounding.
 
 ## Test Scenarios
 
 Twelve hand-crafted ASP scenarios cover P1 (unreachability), P2 (mutex), P3 (sequencing), mixed conflicts, and edge cases. Each scenario has an expected `MeasureProfile` asserted by `tests/test_measures.py`.
 
-Profile format: `(ur_scope, ur_struct, mx_scope, mx_struct, gs_scope, gs_struct)`. The profile also exposes problem size metadata (`num_goals`, `num_props`, `num_operators`).
+Profile format: `(ur_scope, ur_struct, mx_scope, mx_struct, gs_scope, gs_struct)`. Problem-size metadata (`num_goals`, `num_props`, `num_operators`) is carried alongside on `MeasureResult.size`.
 
 See [tests/scenarios/README.md](tests/scenarios/README.md) for the full catalog, expected profiles, and the scenario file format.
 
@@ -159,17 +174,21 @@ planning-inconsistency-measures/
 │   ├── batch.py                 # Batch benchmark runner (CSV output)
 │   ├── cli.py                   # CLI (planning-measures command)
 │   ├── execution.py             # Timeout-protected compute + ExecutionResult + CSV row composition
-│   ├── measures.py              # Core computation (single brave pass)
+│   ├── extraction.py            # BraveOutcome + pure measure extraction (P1/P2/P3 set algebra)
+│   ├── measures.py              # Pipeline orchestrator (translate -> solve -> extract)
 │   ├── pddl_preprocessor.py     # Strips action costs from PDDL for plasp
-│   ├── profile.py               # MeasureProfile and TimingProfile dataclasses
-│   └── solver.py                # Clingo wrapper (brave reasoning)
+│   ├── profile.py               # MeasureProfile, ProblemSize, TimingProfile, MeasureResult
+│   └── solver.py                # Clingo wrapper (brave reasoning, atom-name filter)
 ├── results/                     # Benchmark experiment outputs (see results/README.md)
 ├── tests/
 │   ├── pddl/                    # PDDL test cases (see tests/pddl/README.md)
 │   ├── scenarios/               # ASP test scenarios (see tests/scenarios/README.md)
 │   ├── test_execution.py        # pytest: compute_with_timeout + ExecutionResult
-│   ├── test_measures.py         # pytest: measure computation + hierarchy
-│   └── test_plasp.py            # pytest: plasp pipeline + preprocessor
+│   ├── test_extraction.py       # pytest: pure extraction (no Clingo)
+│   ├── test_measures.py         # pytest: pipeline integration + scenario profiles
+│   ├── test_plasp.py            # pytest: plasp pipeline + preprocessor
+│   ├── test_profile.py          # pytest: profile / size / result dataclasses
+│   └── test_solver.py           # pytest: solve_brave bucket shape + filter
 ├── CITATION.cff                 # Citation metadata
 ├── docker-compose.yml           # Container orchestration
 ├── Dockerfile                   # Container definition

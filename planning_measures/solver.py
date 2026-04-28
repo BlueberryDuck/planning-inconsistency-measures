@@ -4,7 +4,6 @@ Clingo solver wrapper for ASP-based computation.
 
 import logging
 import time
-from collections.abc import Callable
 from pathlib import Path
 
 import clingo
@@ -22,20 +21,25 @@ BRIDGE_PLASP_LP = ENCODINGS_DIR / "bridge_plasp.lp"
 def solve_brave(
     problem_path: Path,
     horizon: int,
-    on_atom: Callable[[str, tuple], None],
+    keep_atoms: frozenset[str],
     use_bridge: bool = False,
-) -> tuple[bool, float, float]:
+) -> tuple[dict[str, list[tuple]], float, float]:
     """
-    Run brave reasoning (union of all answer sets).
+    Run brave reasoning (union of all answer sets) and bucket the kept atoms.
 
     Args:
         problem_path: Path to the problem .lp file
         horizon: State exploration depth
-        on_atom: Callback receiving (predicate_name, arguments) for each shown atom
+        keep_atoms: Atom names to retain. Atoms outside this set are dropped.
         use_bridge: If True, load the plasp bridge encoding (for plasp-translated input)
 
     Returns:
-        Tuple of (satisfiable, ground_time, solve_time) where times are in seconds.
+        Tuple of (buckets, ground_time, solve_time) where buckets is a dict
+        keyed by atom name (only names in `keep_atoms` appear) mapping to a
+        list of argument tuples. Times are in seconds.
+
+    Raises:
+        RuntimeError: If the program is UNSAT.
     """
     args = [
         f"-c horizon={horizon}",
@@ -58,17 +62,21 @@ def solve_brave(
     ctl.ground([("base", [])])
     t_ground = time.monotonic() - t0
 
+    buckets: dict[str, list[tuple]] = {name: [] for name in keep_atoms}
     satisfiable = False
 
     def on_model(model):
         nonlocal satisfiable
         satisfiable = True
         for atom in model.symbols(shown=True):
-            solve_args = tuple(
+            name = atom.name
+            if name not in keep_atoms:
+                continue
+            args_tuple = tuple(
                 arg.number if arg.type == clingo.SymbolType.Number else str(arg)
                 for arg in atom.arguments
             )
-            on_atom(atom.name, solve_args)
+            buckets[name].append(args_tuple)
 
     t1 = time.monotonic()
     ctl.solve(on_model=on_model)
@@ -80,4 +88,8 @@ def solve_brave(
         t_ground,
         t_solve,
     )
-    return satisfiable, t_ground, t_solve
+
+    if not satisfiable:
+        raise RuntimeError(f"ASP solving failed for {problem_path}")
+
+    return buckets, t_ground, t_solve

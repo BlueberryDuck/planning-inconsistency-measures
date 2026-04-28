@@ -74,8 +74,12 @@ Tests boundary conditions and solvable instances to ensure no false positives.
 
 ```
 tests/
-├── test_measures.py           # pytest: measure computation + hierarchy
+├── test_execution.py          # pytest: compute_with_timeout + ExecutionResult
+├── test_extraction.py         # pytest: pure extraction (no Clingo)
+├── test_measures.py           # pytest: pipeline integration + scenario profiles
 ├── test_plasp.py              # pytest: plasp pipeline + preprocessor
+├── test_profile.py            # pytest: profile / size / result dataclasses
+├── test_solver.py             # pytest: solve_brave bucket shape + filter
 ├── pddl/                      # PDDL versions of scenarios
 └── scenarios/
     ├── README.md              # This file
@@ -117,7 +121,6 @@ Expected output:
 tests/test_measures.py::test_scenario_profile[p1_unreachability/locked_door-expected0] PASSED
 tests/test_measures.py::test_scenario_profile[p1_unreachability/bank_vault-expected1] PASSED
 ...
-38 passed
 ```
 
 ## Adding New Scenarios

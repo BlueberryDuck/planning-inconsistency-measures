@@ -2,36 +2,40 @@
 
 from pathlib import Path
 
-from planning_measures.execution import CSV_FIELDS, compute_with_timeout
+from planning_measures import MeasureResult
+from planning_measures.execution import (
+    CSV_FIELDS,
+    ExecutionResult,
+    compute_with_timeout,
+)
 
 SCENARIOS_DIR = Path(__file__).parent / "scenarios"
 
 
 def test_compute_with_timeout_ok_on_known_scenario():
-    """In-process branch (timeout<=0) returns ok status with profile and timing."""
-    result = compute_with_timeout(
+    """In-process branch (timeout<=0) returns ok status carrying a MeasureResult."""
+    execution = compute_with_timeout(
         SCENARIOS_DIR / "p1_unreachability/locked_door.lp",
         domain=None,
         horizon=20,
         timeout=0,
     )
-    assert result.status == "ok"
-    assert result.profile is not None
-    assert result.profile.as_tuple() == (1, 3, 0, 0, 0, 0)
-    assert result.timing is not None
-    assert result.elapsed_s > 0
-    assert result.message is None
+    assert execution.status == "ok"
+    assert isinstance(execution.result, MeasureResult)
+    assert execution.result.profile.as_tuple() == (1, 3, 0, 0, 0, 0)
+    assert execution.elapsed_s > 0
+    assert execution.message is None
 
 
-def test_to_csv_row_ok_composes_domain_problem_profile_timing_status():
-    """OK row carries domain, problem stem, all profile fields, all timing fields, status='OK'."""
-    result = compute_with_timeout(
+def test_to_csv_row_ok_composes_domain_problem_size_profile_timing_status():
+    """OK row carries domain, problem stem, size, profile, timing fields, status='OK'."""
+    execution = compute_with_timeout(
         SCENARIOS_DIR / "p1_unreachability/locked_door.lp",
         domain=None,
         horizon=20,
         timeout=0,
     )
-    row = result.to_csv_row(
+    row = execution.to_csv_row(
         "p1_unreachability", SCENARIOS_DIR / "p1_unreachability/locked_door.lp"
     )
     assert row["domain"] == "p1_unreachability"
@@ -40,6 +44,7 @@ def test_to_csv_row_ok_composes_domain_problem_profile_timing_status():
     assert row["ur_struct"] == 3
     assert row["mx_scope"] == 0
     assert row["category"] == "2a"
+    assert isinstance(row["num_goals"], int)
     assert isinstance(row["time_total_s"], float)
     assert row["time_translate_s"] == 0.0
     assert row["status"] == "OK"
@@ -47,13 +52,13 @@ def test_to_csv_row_ok_composes_domain_problem_profile_timing_status():
 
 def test_to_csv_row_error_uses_empty_strings_and_error_status():
     """Non-OK rows have the same shape as OK rows but with empty measure/timing fields."""
-    result = compute_with_timeout(
+    execution = compute_with_timeout(
         Path("does/not/exist.lp"),
         domain=None,
         horizon=10,
         timeout=0,
     )
-    row = result.to_csv_row("dom", Path("does/not/exist.lp"))
+    row = execution.to_csv_row("dom", Path("does/not/exist.lp"))
     assert row["domain"] == "dom"
     assert row["problem"] == "exist"
     for name in (
@@ -100,39 +105,54 @@ def test_csv_fields_matches_order_and_to_csv_row_keys():
         "time_total_s",
         "status",
     ]
-    result = compute_with_timeout(
+    execution = compute_with_timeout(
         SCENARIOS_DIR / "p1_unreachability/locked_door.lp",
         domain=None,
         horizon=20,
         timeout=0,
     )
-    assert list(result.to_csv_row("d", Path("p.lp")).keys()) == CSV_FIELDS
+    assert list(execution.to_csv_row("d", Path("p.lp")).keys()) == CSV_FIELDS
 
 
 def test_status_label_maps_each_status():
-    from planning_measures.execution import ExecutionResult
-
-    ok = ExecutionResult("ok", None, None, None, 0.0)
-    timeout = ExecutionResult("timeout", None, None, None, 1.5)
-    err = ExecutionResult("error", None, None, "RuntimeError: boom", 0.0)
+    ok = ExecutionResult("ok", None, None, 0.0)
+    timeout = ExecutionResult("timeout", None, None, 1.5)
+    err = ExecutionResult("error", None, "RuntimeError: boom", 0.0)
     assert ok.status_label() == "OK"
     assert timeout.status_label() == "TIMEOUT"
     assert err.status_label() == "ERROR: RuntimeError: boom"
 
 
+def test_to_csv_row_status_collapses_multiline_errors():
+    """Multiline error messages (e.g. from plasp stderr) collapse to a single line in CSV."""
+    err = ExecutionResult(
+        "error",
+        None,
+        "RuntimeError: plasp failed:\nproblem.pddl:3:5: error\ninfo: try --parsing-mode",
+        0.0,
+    )
+    row = err.to_csv_row("dom", Path("p.pddl"))
+    assert "\n" not in row["status"]
+    assert "\r" not in row["status"]
+    assert (
+        row["status"]
+        == "ERROR: RuntimeError: plasp failed: problem.pddl:3:5: error info: try --parsing-mode"
+    )
+
+
 def test_compute_with_timeout_error_on_missing_problem():
     """Compute failure surfaces as status='error' with a non-empty message."""
-    result = compute_with_timeout(
+    execution = compute_with_timeout(
         Path("does/not/exist.lp"),
         domain=None,
         horizon=10,
         timeout=0,
     )
-    assert result.status == "error"
-    assert result.profile is None
-    assert result.timing is None
-    assert result.message
+    assert execution.status == "error"
+    assert execution.result is None
+    assert execution.message
     assert (
-        "FileNotFoundError" in result.message or "not found" in result.message.lower()
+        "FileNotFoundError" in execution.message
+        or "not found" in execution.message.lower()
     )
-    assert result.elapsed_s >= 0
+    assert execution.elapsed_s >= 0

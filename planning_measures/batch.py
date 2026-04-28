@@ -152,23 +152,25 @@ def run_benchmark(
         for i, (domain_name, domain_path, problem_path) in enumerate(pairs, 1):
             logger.info("[%d/%d] %s/%s", i, len(pairs), domain_name, problem_path.stem)
 
-            result = compute_with_timeout(problem_path, domain_path, horizon, timeout)
-            row = result.to_csv_row(domain_name, problem_path)
+            execution = compute_with_timeout(
+                problem_path, domain_path, horizon, timeout
+            )
+            row = execution.to_csv_row(domain_name, problem_path)
             writer.writerow(row)
             f.flush()
 
-            if result.status == "ok":
-                profile, timing = result.unwrap()
+            if execution.status == "ok":
+                result = execution.unwrap()
                 logger.info(
                     "  %s [total=%.4fs ground=%.4fs solve=%.4fs]",
-                    profile,
-                    timing.total_s,
-                    timing.ground_s,
-                    timing.solve_s,
+                    result.profile,
+                    result.timing.total_s,
+                    result.timing.ground_s,
+                    result.timing.solve_s,
                 )
                 ok_count += 1
             else:
-                logger.warning("  %s", result.status_label())
+                logger.warning("  %s", execution.status_label())
 
     logger.info("Done: %d/%d OK. Results: %s", ok_count, len(pairs), output_csv)
 

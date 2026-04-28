@@ -40,19 +40,20 @@ def cmd_compute(args: argparse.Namespace) -> None:
 
     print(f"Computing measures for {path.name}...", flush=True)
 
-    result = compute_with_timeout(path, domain_path, args.horizon, args.timeout)
+    execution = compute_with_timeout(path, domain_path, args.horizon, args.timeout)
 
-    if result.status == "timeout":
-        print(f"\nTimed out after {result.elapsed_s:.1f}s", file=sys.stderr)
+    if execution.status == "timeout":
+        print(f"\nTimed out after {execution.elapsed_s:.1f}s", file=sys.stderr)
         sys.exit(1)
-    if result.status == "error":
-        print(f"\n{result.message}", file=sys.stderr)
+    if execution.status == "error":
+        print(f"\n{execution.message}", file=sys.stderr)
         sys.exit(1)
 
-    profile, timing = result.unwrap()
+    result = execution.unwrap()
+    timing = result.timing
 
     print()
-    print(profile.summary())
+    print(result.summary())
     print("\nTiming breakdown:")
     if timing.translate_s > 0:
         print(f"  Translation: {timing.translate_s:.3f}s")

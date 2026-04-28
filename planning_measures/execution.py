@@ -12,13 +12,14 @@ from pathlib import Path
 from typing import Literal
 
 from .measures import compute_measures
-from .profile import MeasureProfile, TimingProfile
+from .profile import MeasureProfile, MeasureResult, ProblemSize, TimingProfile
 
 Status = Literal["ok", "timeout", "error"]
 
 CSV_FIELDS: list[str] = [
     "domain",
     "problem",
+    *ProblemSize.field_names(),
     *MeasureProfile.field_names(),
     *TimingProfile.field_names(),
     "status",
@@ -28,24 +29,21 @@ CSV_FIELDS: list[str] = [
 @dataclass(frozen=True)
 class ExecutionResult:
     status: Status
-    profile: MeasureProfile | None
-    timing: TimingProfile | None
+    result: MeasureResult | None
     message: str | None
     elapsed_s: float
 
     @classmethod
-    def ok(
-        cls, profile: MeasureProfile, timing: TimingProfile, elapsed_s: float
-    ) -> "ExecutionResult":
-        return cls("ok", profile, timing, None, elapsed_s)
+    def ok(cls, result: MeasureResult, elapsed_s: float) -> "ExecutionResult":
+        return cls("ok", result, None, elapsed_s)
 
     @classmethod
     def timeout(cls, elapsed_s: float) -> "ExecutionResult":
-        return cls("timeout", None, None, None, elapsed_s)
+        return cls("timeout", None, None, elapsed_s)
 
     @classmethod
     def error(cls, message: str, elapsed_s: float) -> "ExecutionResult":
-        return cls("error", None, None, message, elapsed_s)
+        return cls("error", None, message, elapsed_s)
 
     def status_label(self) -> str:
         """Human-readable status string used by CLI stderr and CSV `status` column."""
@@ -55,32 +53,39 @@ class ExecutionResult:
             return "TIMEOUT"
         return f"ERROR: {self.message}"
 
-    def unwrap(self) -> tuple[MeasureProfile, TimingProfile]:
-        """Return (profile, timing) when status=='ok'; raise otherwise."""
-        if self.status != "ok" or self.profile is None or self.timing is None:
+    def unwrap(self) -> MeasureResult:
+        """Return the MeasureResult when status=='ok'; raise otherwise."""
+        if self.status != "ok" or self.result is None:
             raise RuntimeError(f"unwrap on non-ok result: {self.status_label()}")
-        return self.profile, self.timing
+        return self.result
 
     def to_csv_row(self, domain: str, problem: Path) -> dict:
-        """Compose a CSV row: domain + problem stem + measure fields + timing fields + status."""
+        """Compose a CSV row: domain + problem stem + size + measures + timing + status.
+
+        Status is collapsed to a single line so the CSV stays human-readable when
+        underlying error messages (e.g. plasp stderr) contain newlines.
+        """
         row: dict = {"domain": domain, "problem": problem.stem}
-        if self.status == "ok" and self.profile is not None and self.timing is not None:
-            row.update(self.profile.as_dict())
-            row.update(self.timing.as_dict())
+        if self.status == "ok" and self.result is not None:
+            row.update(self.result.size.as_dict())
+            row.update(self.result.profile.as_dict())
+            row.update(self.result.timing.as_dict())
         else:
+            for name in ProblemSize.field_names():
+                row[name] = ""
             for name in MeasureProfile.field_names():
                 row[name] = ""
             for name in TimingProfile.field_names():
                 row[name] = ""
-        row["status"] = self.status_label()
+        row["status"] = " ".join(self.status_label().split())
         return row
 
 
 def _worker(queue: Queue, problem: str, domain: str | None, horizon: int) -> None:
     """Child-process entry: compute and ship result through the queue."""
     try:
-        profile, timing = compute_measures(problem, domain_path=domain, horizon=horizon)
-        queue.put(("ok", (profile, timing)))
+        result = compute_measures(problem, domain_path=domain, horizon=horizon)
+        queue.put(("ok", result))
     except Exception as e:
         queue.put(("error", f"{type(e).__name__}: {e}"))
 
@@ -99,12 +104,10 @@ def compute_with_timeout(
 
     if timeout <= 0:
         try:
-            profile, timing = compute_measures(
-                problem, domain_path=domain, horizon=horizon
-            )
+            result = compute_measures(problem, domain_path=domain, horizon=horizon)
         except Exception as e:
             return ExecutionResult.error(f"{type(e).__name__}: {e}", elapsed())
-        return ExecutionResult.ok(profile, timing, elapsed())
+        return ExecutionResult.ok(result, elapsed())
 
     ctx = mp.get_context("spawn")
     queue = ctx.Queue()
@@ -126,6 +129,5 @@ def compute_with_timeout(
         return ExecutionResult.error("worker exited without result", elapsed())
 
     if status == "ok":
-        profile, timing = value
-        return ExecutionResult.ok(profile, timing, elapsed())
+        return ExecutionResult.ok(value, elapsed())
     return ExecutionResult.error(value, elapsed())

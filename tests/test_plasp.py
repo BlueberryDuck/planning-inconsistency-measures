@@ -27,25 +27,25 @@ class TestPlaspPipeline:
 
     def test_locked_door_pddl(self):
         """Locked Door via PDDL should match .lp scenario."""
-        profile, timing = compute_measures(
+        result = compute_measures(
             PDDL_DIR / "locked_door/problem01.pddl",
             domain_path=PDDL_DIR / "locked_door/domain.pddl",
         )
-        assert profile.ur_scope == 1
-        assert profile.mx_scope == 0
-        assert profile.gs_scope == 0
-        assert timing.translate_s > 0  # PDDL path exercises plasp translation
+        assert result.profile.ur_scope == 1
+        assert result.profile.mx_scope == 0
+        assert result.profile.gs_scope == 0
+        assert result.timing.translate_s > 0  # PDDL path exercises plasp translation
 
     def test_trust_travel_pddl(self):
         """Trust and Travel via PDDL should match .lp scenario."""
-        profile, _ = compute_measures(
+        result = compute_measures(
             PDDL_DIR / "trust_travel/problem01.pddl",
             domain_path=PDDL_DIR / "trust_travel/domain.pddl",
         )
-        assert profile.mx_scope == 2
-        assert profile.mx_struct == 1
-        assert profile.gs_scope == 2
-        assert profile.gs_struct == 1
+        assert result.profile.mx_scope == 2
+        assert result.profile.mx_struct == 1
+        assert result.profile.gs_scope == 2
+        assert result.profile.gs_struct == 1
 
     def test_domain_not_found(self):
         with pytest.raises(FileNotFoundError, match="Domain file not found"):
