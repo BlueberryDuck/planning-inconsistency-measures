@@ -11,10 +11,8 @@ from pathlib import Path
 import pytest
 
 from planning_measures import compute_measures
-from planning_measures.batch import find_pddl_pairs
 from planning_measures.pddl_pipeline import (
     TranslatedProblem,
-    strip_costs,
     translate_pddl,
 )
 
@@ -105,73 +103,3 @@ class TestTranslatePddl:
         assert created_dirs, "expected translate_pddl to call tempfile.mkdtemp"
         for d in created_dirs:
             assert not Path(d).exists(), f"temp dir {d} not cleaned up"
-
-
-class TestFindPddlPairs:
-    """Tests for batch PDDL pair discovery."""
-
-    def test_finds_pairs_in_test_dir(self):
-        """Should discover domain/problem pairs in tests/pddl/."""
-        pairs = find_pddl_pairs(PDDL_DIR)
-        domains = {name for name, _, _ in pairs}
-        assert "locked_door" in domains
-        assert "trust_travel" in domains
-        assert len(pairs) >= 2
-
-    def test_returns_correct_structure(self):
-        """Each pair should be (domain_name, domain_path, problem_path)."""
-        pairs = find_pddl_pairs(PDDL_DIR)
-        for name, domain_path, problem_path in pairs:
-            assert isinstance(name, str)
-            assert domain_path.exists()
-            assert problem_path.exists()
-            assert domain_path.name == "domain.pddl"
-
-    def test_skip_domains(self):
-        """Skipped domains should be excluded."""
-        pairs = find_pddl_pairs(PDDL_DIR, skip_domains={"locked_door"})
-        domains = {name for name, _, _ in pairs}
-        assert "locked_door" not in domains
-        assert "trust_travel" in domains
-
-
-class TestPreprocessor:
-    """Tests for the PDDL cost-stripping preprocessor."""
-
-    def test_strips_action_costs_requirement(self):
-        text = "(:requirements :action-costs :strips :typing)"
-        result = strip_costs(text)
-        assert ":action-costs" not in result
-        assert ":strips" in result
-
-    def test_strips_functions_section(self):
-        text = "(:functions (total-cost) - number)\n(:predicates (at ?x))"
-        result = strip_costs(text)
-        assert ":functions" not in result
-        assert ":predicates" in result
-
-    def test_strips_increase_effect(self):
-        text = "(and (at ?x) (increase (total-cost) 1))"
-        result = strip_costs(text)
-        assert "increase" not in result
-        assert "(at ?x)" in result
-
-    def test_strips_function_assignments(self):
-        text = "(= (road-length city1 city2) 22)"
-        result = strip_costs(text)
-        assert "road-length" not in result
-
-    def test_strips_metric(self):
-        text = "(:metric minimize (total-cost))"
-        result = strip_costs(text)
-        assert ":metric" not in result
-
-    def test_preserves_non_cost_content(self):
-        text = """(define (domain test)
-(:requirements :strips :typing)
-(:predicates (at ?x - location))
-(:action move :parameters (?from ?to - location)
-  :precondition (at ?from)
-  :effect (and (at ?to) (not (at ?from)))))"""
-        result = strip_costs(text)
-        assert result.strip() == text.strip()

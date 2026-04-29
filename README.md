@@ -110,7 +110,7 @@ run_benchmark('benchmarks/unsolve-ipc-2016/domains/FINAL/diagnosis', 'results/di
 "
 ```
 
-The runner auto-discovers domain/problem pairs using IPC naming conventions (`domain.pddl` + `prob*.pddl`, or numbered `dom01.pddl` + `prob01.pddl`). Output is a CSV with columns: `domain, problem, num_goals, num_props, num_operators, ur_scope, ur_struct, mx_scope, mx_struct, gs_scope, gs_struct, category, time_translate_s, time_ground_s, time_solve_s, time_extract_s, time_total_s, status`.
+The runner auto-discovers domain/problem pairs via `benchmark_layout.discover`, which supports `domain.pddl` + `prob*.pddl`, numbered `dom01.pddl` + `prob01.pddl` / `satprob01.pddl`, and `domain_<name>.pddl` + `<name>.pddl` (Eriksson) layouts. Output is a CSV with columns: `domain, problem, num_goals, num_props, num_operators, ur_scope, ur_struct, mx_scope, mx_struct, gs_scope, gs_struct, category, time_translate_s, time_ground_s, time_solve_s, time_extract_s, time_total_s, status`.
 
 **Compatible IPC 2016 domains** (within 120s timeout): `diagnosis`, `pegsol-row5`, `bottleneck`, `cave-diving`, `document-transfer`, `chessboard-pebbling`. The `3unsat` domain from the Eriksson benchmarks is also compatible. Other domains timeout due to grounding complexity. See the thesis for details.
 
@@ -118,7 +118,8 @@ To run all compatible domains at once, use `skip_domains` to exclude known-incom
 
 ```bash
 python -c "
-from planning_measures.batch import run_benchmark, KNOWN_INCOMPATIBLE
+from planning_measures.batch import run_benchmark
+from planning_measures.benchmark_layout import KNOWN_INCOMPATIBLE
 run_benchmark(
     'benchmarks/unsolve-ipc-2016/domains/FINAL',
     'results/ipc2016.csv',
@@ -172,6 +173,7 @@ planning-inconsistency-measures/
 │   ├── __init__.py              # Public API
 │   ├── __main__.py              # Enables `python -m planning_measures`
 │   ├── batch.py                 # Batch benchmark runner (CSV output)
+│   ├── benchmark_layout.py      # Benchmark discovery: discover() + KNOWN_INCOMPATIBLE
 │   ├── brave.py                 # Brave reasoning: BraveOutcome, BraveReasoningResult, run_brave_reasoning
 │   ├── cli.py                   # CLI (planning-measures command)
 │   ├── execution.py             # Timeout-protected compute + ExecutionResult + CSV row composition
@@ -183,12 +185,13 @@ planning-inconsistency-measures/
 ├── tests/
 │   ├── pddl/                    # PDDL test cases (see tests/pddl/README.md)
 │   ├── scenarios/               # ASP test scenarios (see tests/scenarios/README.md)
+│   ├── test_benchmark_layout.py # pytest: discover() over synthetic IPC layouts
 │   ├── test_brave.py            # pytest: run_brave_reasoning + BraveReasoningResult
 │   ├── test_execution.py        # pytest: compute_with_timeout + ExecutionResult
 │   ├── test_extraction.py       # pytest: pure extraction (no Clingo)
 │   ├── test_measures.py         # pytest: pipeline integration + scenario profiles
-│   ├── test_pddl_pipeline.py    # pytest: TranslatedProblem context manager
-│   ├── test_plasp.py            # pytest: plasp pipeline + preprocessor + translate_pddl
+│   ├── test_pddl_pipeline.py    # pytest: TranslatedProblem context manager + strip_costs
+│   ├── test_plasp.py            # pytest: translate_pddl end-to-end (requires plasp)
 │   └── test_profile.py          # pytest: profile / size / result dataclasses
 ├── CITATION.cff                 # Citation metadata
 ├── docker-compose.yml           # Container orchestration

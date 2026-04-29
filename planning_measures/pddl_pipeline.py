@@ -96,6 +96,17 @@ def translate_pddl(
     )
 
 
+_KEYWORD_RULES: tuple[tuple[str, re.Pattern[str]], ...] = tuple(
+    (kw, re.compile(rf"\(\s*{re.escape(kw)}\b", re.IGNORECASE))
+    for kw in (":functions", ":metric", "increase", "decrease")
+)
+
+_FUNCTION_ASSIGNMENT_RULE: tuple[str, re.Pattern[str]] = (
+    "function-assignments",
+    re.compile(r"\(\s*=\s*\("),
+)
+
+
 def strip_costs(pddl_text: str) -> str:
     """Remove action-cost elements from PDDL text.
 
@@ -107,23 +118,18 @@ def strip_costs(pddl_text: str) -> str:
       - (:metric ...) specification
     """
     text = pddl_text
-    stripped = []
+    stripped: list[str] = []
 
     prev = text
     text = re.sub(r":action-costs\s*", "", text)
     if text != prev:
         stripped.append(":action-costs")
 
-    for keyword in (":functions", ":metric", "increase", "decrease"):
+    for label, opener in (*_KEYWORD_RULES, _FUNCTION_ASSIGNMENT_RULE):
         prev = text
-        text = _remove_sexp(text, keyword)
+        text = _splice_balanced_sexpr(text, opener)
         if text != prev:
-            stripped.append(keyword)
-
-    prev = text
-    text = _remove_function_assignments(text)
-    if text != prev:
-        stripped.append("function-assignments")
+            stripped.append(label)
 
     if stripped:
         logger.debug("Stripped cost elements: %s", ", ".join(stripped))
@@ -131,27 +137,25 @@ def strip_costs(pddl_text: str) -> str:
     return text
 
 
-def _remove_function_assignments(text: str) -> str:
-    """Remove (= (function-name ...) value) assignments from PDDL text.
+def _splice_balanced_sexpr(text: str, opener: re.Pattern[str]) -> str:
+    """Splice out every S-expression whose opening matches `opener`.
 
-    Matches patterns like (= (total-cost) 0) or (= (road-length c1 c2) 22).
+    The match must include the leading `(`; this function then walks
+    forward to the balancing `)` and removes the whole span. On unmatched
+    parens, the remainder of the text is preserved verbatim — load-bearing
+    for malformed PDDL fragments encountered during preprocessing.
     """
-    result = []
+    out: list[str] = []
     i = 0
     while i < len(text):
-        # Look for (= (
-        match = re.search(r"\(\s*=\s*\(", text[i:])
+        match = opener.search(text, i)
         if not match:
-            result.append(text[i:])
+            out.append(text[i:])
             break
 
-        # Add text before the match
-        result.append(text[i : i + match.start()])
-
-        # Find matching closing paren for the outer (= ...)
-        pos = i + match.start()
+        out.append(text[i : match.start()])
         depth = 0
-        j = pos
+        j = match.start()
         while j < len(text):
             if text[j] == "(":
                 depth += 1
@@ -162,46 +166,7 @@ def _remove_function_assignments(text: str) -> str:
                     break
             j += 1
         else:
-            result.append(text[pos:])
+            out.append(text[match.start() :])
             i = len(text)
 
-    return "".join(result)
-
-
-def _remove_sexp(text: str, keyword: str) -> str:
-    """Remove all S-expressions starting with (keyword ...) from text.
-
-    Handles nested parentheses correctly.
-    """
-    result = []
-    i = 0
-    while i < len(text):
-        # Look for opening paren followed by keyword
-        match = re.search(rf"\(\s*{re.escape(keyword)}\b", text[i:], re.IGNORECASE)
-        if not match:
-            result.append(text[i:])
-            break
-
-        # Add text before the match
-        result.append(text[i : i + match.start()])
-
-        # Find matching closing paren
-        pos = i + match.start()
-        depth = 0
-        j = pos
-        while j < len(text):
-            if text[j] == "(":
-                depth += 1
-            elif text[j] == ")":
-                depth -= 1
-                if depth == 0:
-                    # Skip this entire S-expression
-                    i = j + 1
-                    break
-            j += 1
-        else:
-            # Unmatched parens, keep remainder as-is
-            result.append(text[pos:])
-            i = len(text)
-
-    return "".join(result)
+    return "".join(out)

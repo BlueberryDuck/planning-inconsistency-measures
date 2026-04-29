@@ -7,6 +7,7 @@ per-phase timing breakdown (translate, ground, solve, extract).
 
 Usage:
     from planning_measures.batch import run_benchmark
+    from planning_measures.benchmark_layout import KNOWN_INCOMPATIBLE
 
     run_benchmark(
         "/path/to/benchmarks",
@@ -17,99 +18,12 @@ Usage:
 
 import csv
 import logging
-import re
 from pathlib import Path
 
+from .benchmark_layout import discover
 from .execution import CSV_FIELDS, compute_with_timeout
 
 logger = logging.getLogger(__name__)
-
-# IPC 2016 domains known to be incompatible with plasp
-KNOWN_INCOMPATIBLE = {
-    "bag-barman",  # :equality not supported by plasp
-    "tetris",  # :equality not supported by plasp
-    "bag-gripper",  # grounding timeout (>120s)
-    "bag-transport",  # grounding timeout (>120s)
-    "over-nomystery",  # grounding timeout (>120s)
-    "over-rovers",  # grounding timeout (>120s)
-    "over-tpp",  # grounding timeout (>120s)
-    "sliding-tiles",  # grounding timeout (>120s)
-    "pegsol",  # grounding timeout (>120s)
-}
-
-
-def find_pddl_pairs(
-    benchmark_dir: Path,
-    skip_domains: set[str] | None = None,
-) -> list[tuple[str, Path, Path]]:
-    """
-    Find all domain/problem pairs in a benchmark directory.
-
-    Returns list of (domain_name, domain_path, problem_path) tuples.
-
-    Args:
-        benchmark_dir: Directory to scan
-        skip_domains: Domain names to exclude (e.g. KNOWN_INCOMPATIBLE)
-
-    Handles IPC naming conventions:
-    - domain.pddl + prob*.pddl / satprob*.pddl
-    - dom01.pddl + prob01.pddl (numbered pairs)
-    - domain_<name>.pddl + <name>.pddl (Eriksson benchmarks)
-    """
-    pairs = []
-    skip = skip_domains or set()
-
-    # Check if benchmark_dir contains domain subdirectories or is a single domain
-    domain_dirs = []
-    if (
-        (benchmark_dir / "domain.pddl").exists()
-        or list(benchmark_dir.glob("dom[0-9]*.pddl"))
-        or list(benchmark_dir.glob("domain_*.pddl"))
-    ):
-        # Single domain directory
-        domain_dirs.append(("", benchmark_dir))
-    else:
-        # Multiple domain subdirectories
-        for subdir in sorted(benchmark_dir.iterdir()):
-            if subdir.is_dir() and subdir.name not in skip:
-                domain_dirs.append((subdir.name, subdir))
-
-    for domain_name, domain_dir in domain_dirs:
-        # Find domain file(s)
-        single_domain = domain_dir / "domain.pddl"
-
-        if single_domain.exists():
-            # Single domain file: pair with all prob*.pddl and satprob*.pddl
-            for prob in sorted(domain_dir.glob("*.pddl")):
-                if prob.name == "domain.pddl":
-                    continue
-                label = domain_name or domain_dir.name
-                pairs.append((label, single_domain, prob))
-        else:
-            # Numbered domain files: match dom01 with prob01
-            for dom_file in sorted(domain_dir.glob("dom[0-9]*.pddl")):
-                match = re.match(r"dom(\d+)\.pddl", dom_file.name)
-                if not match:
-                    continue
-                num = match.group(1)
-                prob = domain_dir / f"prob{num}.pddl"
-                if prob.exists():
-                    label = domain_name or domain_dir.name
-                    pairs.append((label, dom_file, prob))
-                # Also check for satprob
-                satprob = domain_dir / f"satprob{num}.pddl"
-                if satprob.exists():
-                    pairs.append((label, dom_file, satprob))
-
-            # Eriksson-style: domain_<name>.pddl + <name>.pddl
-            for dom_file in sorted(domain_dir.glob("domain_*.pddl")):
-                suffix = dom_file.name[len("domain_") :]
-                prob = domain_dir / suffix
-                if prob.exists():
-                    label = domain_name or domain_dir.name
-                    pairs.append((label, dom_file, prob))
-
-    return pairs
 
 
 def run_benchmark(
@@ -136,7 +50,7 @@ def run_benchmark(
     benchmark_dir = Path(benchmark_dir)
     output_csv = Path(output_csv)
 
-    pairs = find_pddl_pairs(benchmark_dir, skip_domains=skip_domains)
+    pairs = discover(benchmark_dir, skip_domains=skip_domains)
     if not pairs:
         raise ValueError(f"No PDDL pairs found in {benchmark_dir}")
 
