@@ -144,13 +144,13 @@ Two layers:
 
 The PDDL pipeline:
 
-1. **Preprocessing**: strips action costs from PDDL (irrelevant to inconsistency measures)
-2. **plasp**: translates PDDL to lifted ASP representation
-3. **Bridge encoding**: maps plasp vocabulary to internal predicates
-4. **Brave reasoning**: Clingo grounds and solves with `--enum-mode=brave`, returning a bucket of atoms for each name in `extraction.KEEP_ATOMS`
-5. **Measure extraction**: `extraction.collect` shapes the buckets into a `BraveOutcome`; `extract_measures` computes P1 from set difference on `true_reachable`, P2/P3 from witness absence
+1. **Preprocess** (`pddl_pipeline.strip_costs`): strips action costs from PDDL (irrelevant to inconsistency measures)
+2. **Translate** (`pddl_pipeline.translate_pddl`): runs plasp to translate PDDL to lifted ASP, yielding a context-managed `TranslatedProblem` (path + `needs_bridge` + `translate_s`)
+3. **Bridge encoding**: `bridge_plasp.lp` maps plasp vocabulary to internal predicates; loaded by Brave reasoning iff `translated.needs_bridge`
+4. **Brave reasoning** (`brave.run_brave_reasoning`): Clingo grounds and solves with `--enum-mode=brave`, filters by a private atom vocabulary, and returns a `BraveReasoningResult` (a `BraveOutcome` plus `ground_s`/`solve_s`)
+5. **Extraction** (`extraction.extract_measures`): pure set algebra over `BraveOutcome` — P1 from set difference on `true_reachable`, P2/P3 from witness absence
 
-Each phase is individually timed (`TimingProfile`), with grounding and solving measured separately to identify bottlenecks. The seam between the solver wrapper and measure logic is the typed `BraveOutcome` (no string-dispatch callbacks). Timeouts and CSV row composition live in `planning_measures/execution.py`, which both the CLI and batch runner use; timeout enforcement uses a subprocess + SIGKILL so Clingo can be killed reliably even during grounding.
+Each phase is individually timed (`TimingProfile`), with grounding and solving measured separately to identify bottlenecks. The typed seams — `TranslatedProblem` from Translate, `BraveOutcome` from Brave reasoning — keep each step pure and independently testable. Timeouts and CSV row composition live in `planning_measures/execution.py`, which both the CLI and batch runner use; timeout enforcement uses a subprocess + SIGKILL so Clingo can be killed reliably even during grounding.
 
 ## Test Scenarios
 
@@ -172,23 +172,24 @@ planning-inconsistency-measures/
 │   ├── __init__.py              # Public API
 │   ├── __main__.py              # Enables `python -m planning_measures`
 │   ├── batch.py                 # Batch benchmark runner (CSV output)
+│   ├── brave.py                 # Brave reasoning: BraveOutcome, BraveReasoningResult, run_brave_reasoning
 │   ├── cli.py                   # CLI (planning-measures command)
 │   ├── execution.py             # Timeout-protected compute + ExecutionResult + CSV row composition
-│   ├── extraction.py            # BraveOutcome + pure measure extraction (P1/P2/P3 set algebra)
-│   ├── measures.py              # Pipeline orchestrator (translate -> solve -> extract)
-│   ├── pddl_preprocessor.py     # Strips action costs from PDDL for plasp
-│   ├── profile.py               # MeasureProfile, ProblemSize, TimingProfile, MeasureResult
-│   └── solver.py                # Clingo wrapper (brave reasoning, atom-name filter)
+│   ├── extraction.py            # Pure set-algebra extraction over BraveOutcome (P1/P2/P3)
+│   ├── measures.py              # Pipeline orchestrator (translate -> brave reasoning -> extract)
+│   ├── pddl_pipeline.py         # Preprocess (strip_costs) + Translate (TranslatedProblem, translate_pddl)
+│   └── profile.py               # MeasureProfile, ProblemSize, TimingProfile, MeasureResult
 ├── results/                     # Benchmark experiment outputs (see results/README.md)
 ├── tests/
 │   ├── pddl/                    # PDDL test cases (see tests/pddl/README.md)
 │   ├── scenarios/               # ASP test scenarios (see tests/scenarios/README.md)
+│   ├── test_brave.py            # pytest: run_brave_reasoning + BraveReasoningResult
 │   ├── test_execution.py        # pytest: compute_with_timeout + ExecutionResult
 │   ├── test_extraction.py       # pytest: pure extraction (no Clingo)
 │   ├── test_measures.py         # pytest: pipeline integration + scenario profiles
-│   ├── test_plasp.py            # pytest: plasp pipeline + preprocessor
-│   ├── test_profile.py          # pytest: profile / size / result dataclasses
-│   └── test_solver.py           # pytest: solve_brave bucket shape + filter
+│   ├── test_pddl_pipeline.py    # pytest: TranslatedProblem context manager
+│   ├── test_plasp.py            # pytest: plasp pipeline + preprocessor + translate_pddl
+│   └── test_profile.py          # pytest: profile / size / result dataclasses
 ├── CITATION.cff                 # Citation metadata
 ├── docker-compose.yml           # Container orchestration
 ├── Dockerfile                   # Container definition

@@ -24,21 +24,27 @@ subprocess when timeout > 0:
         print(result.summary())
 """
 
+from .brave import BraveOutcome, BraveReasoningResult, run_brave_reasoning
 from .execution import ExecutionResult, compute_with_timeout
-from .extraction import BraveOutcome, extract_measures, extract_problem_size
+from .extraction import extract_measures, extract_problem_size
 from .measures import compute_measures
+from .pddl_pipeline import TranslatedProblem, translate_pddl
 from .profile import MeasureProfile, MeasureResult, ProblemSize, TimingProfile
 
 __all__ = [
     "BraveOutcome",
+    "BraveReasoningResult",
     "ExecutionResult",
     "MeasureProfile",
     "MeasureResult",
     "ProblemSize",
     "TimingProfile",
+    "TranslatedProblem",
     "compute_measures",
     "compute_with_timeout",
     "extract_measures",
     "extract_problem_size",
+    "run_brave_reasoning",
+    "translate_pddl",
 ]
 __version__ = "1.0.0"

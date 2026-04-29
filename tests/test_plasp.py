@@ -5,13 +5,18 @@ Run with: pytest tests/test_plasp.py -v
 """
 
 import shutil
+import tempfile
 from pathlib import Path
 
 import pytest
 
 from planning_measures import compute_measures
 from planning_measures.batch import find_pddl_pairs
-from planning_measures.pddl_preprocessor import strip_costs
+from planning_measures.pddl_pipeline import (
+    TranslatedProblem,
+    strip_costs,
+    translate_pddl,
+)
 
 PDDL_DIR = Path(__file__).parent / "pddl"
 
@@ -60,6 +65,46 @@ class TestPlaspPipeline:
                 "nonexistent_problem.pddl",
                 domain_path=PDDL_DIR / "locked_door/domain.pddl",
             )
+
+
+@requires_plasp
+class TestTranslatePddl:
+    """Tests for the Translate context manager."""
+
+    def test_yields_translated_problem_with_needs_bridge_true(self):
+        with translate_pddl(
+            PDDL_DIR / "locked_door/domain.pddl",
+            PDDL_DIR / "locked_door/problem01.pddl",
+        ) as translated:
+            assert isinstance(translated, TranslatedProblem)
+            assert translated.needs_bridge is True
+            assert translated.translate_s > 0
+            assert translated.path.exists()
+
+    def test_raises_and_cleans_up_temp_dir_on_plasp_failure(
+        self, tmp_path, monkeypatch
+    ):
+        bad_domain = tmp_path / "bad_domain.pddl"
+        bad_domain.write_text("(this is not valid pddl)")
+        bad_problem = tmp_path / "bad_problem.pddl"
+        bad_problem.write_text("(neither is this)")
+
+        created_dirs: list[str] = []
+        real_mkdtemp = tempfile.mkdtemp
+
+        def tracked_mkdtemp(*args, **kwargs):
+            d = real_mkdtemp(*args, **kwargs)
+            created_dirs.append(d)
+            return d
+
+        monkeypatch.setattr(tempfile, "mkdtemp", tracked_mkdtemp)
+
+        with pytest.raises(RuntimeError, match="plasp translation failed"):
+            translate_pddl(bad_domain, bad_problem)
+
+        assert created_dirs, "expected translate_pddl to call tempfile.mkdtemp"
+        for d in created_dirs:
+            assert not Path(d).exists(), f"temp dir {d} not cleaned up"
 
 
 class TestFindPddlPairs:

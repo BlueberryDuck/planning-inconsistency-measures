@@ -74,12 +74,13 @@ Tests boundary conditions and solvable instances to ensure no false positives.
 
 ```
 tests/
+├── test_brave.py              # pytest: run_brave_reasoning + BraveReasoningResult
 ├── test_execution.py          # pytest: compute_with_timeout + ExecutionResult
 ├── test_extraction.py         # pytest: pure extraction (no Clingo)
 ├── test_measures.py           # pytest: pipeline integration + scenario profiles
-├── test_plasp.py              # pytest: plasp pipeline + preprocessor
+├── test_pddl_pipeline.py      # pytest: TranslatedProblem context manager
+├── test_plasp.py              # pytest: plasp pipeline + preprocessor + translate_pddl
 ├── test_profile.py            # pytest: profile / size / result dataclasses
-├── test_solver.py             # pytest: solve_brave bucket shape + filter
 ├── pddl/                      # PDDL versions of scenarios
 └── scenarios/
     ├── README.md              # This file

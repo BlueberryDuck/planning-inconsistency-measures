@@ -1,41 +1,11 @@
-"""Extraction layer: brave-reasoning atoms -> MeasureProfile / ProblemSize.
+"""Pure set-algebra extraction over a `BraveOutcome`.
 
-Pure functions over a typed `BraveOutcome`. No Clingo dependency.
-
-The atom-name vocabulary (`KEEP_ATOMS`) lives here so the solver wrapper can
-stay generic — it just filters by these names.
+No Clingo dependency. Consumes the typed handoff produced by Brave reasoning
+and computes the six-measure `MeasureProfile` and the `ProblemSize`.
 """
 
-from dataclasses import dataclass
-
+from .brave import BraveOutcome
 from .profile import MeasureProfile, ProblemSize
-
-KEEP_ATOMS: frozenset[str] = frozenset(
-    {
-        "goal",
-        "prop",
-        "operator",
-        "true_reachable",
-        "coexist_witness",
-        "g2_after_g1_witness",
-    }
-)
-
-
-@dataclass(frozen=True)
-class BraveOutcome:
-    """Raw atom sets produced by a single brave-reasoning pass.
-
-    No pre-derived intersections. `extract_measures` does the set algebra so
-    test inputs stay faithful to the solver output.
-    """
-
-    goals: frozenset[str]
-    props: frozenset[str]
-    operators: frozenset[str]
-    true_reachable: frozenset[str]
-    coexist_witness: frozenset[tuple[str, str]]
-    g2_after_g1_witness: frozenset[tuple[str, str]]
 
 
 def extract_measures(outcome: BraveOutcome) -> MeasureProfile:
@@ -63,30 +33,6 @@ def extract_problem_size(outcome: BraveOutcome) -> ProblemSize:
         num_goals=len(outcome.goals),
         num_props=len(outcome.props),
         num_operators=len(outcome.operators),
-    )
-
-
-def collect(buckets: dict[str, list[tuple]]) -> BraveOutcome:
-    """Wrap solver bucket dict into a typed BraveOutcome.
-
-    The solver returns `dict[atom_name -> list[args_tuple]]` filtered by
-    KEEP_ATOMS. This function shapes those buckets into the typed outcome.
-    Missing keys default to empty.
-    """
-
-    def unary(name: str) -> frozenset[str]:
-        return frozenset(args[0] for args in buckets.get(name, ()))
-
-    def binary(name: str) -> frozenset[tuple[str, str]]:
-        return frozenset((args[0], args[1]) for args in buckets.get(name, ()))
-
-    return BraveOutcome(
-        goals=unary("goal"),
-        props=unary("prop"),
-        operators=unary("operator"),
-        true_reachable=unary("true_reachable"),
-        coexist_witness=binary("coexist_witness"),
-        g2_after_g1_witness=binary("g2_after_g1_witness"),
     )
 
 

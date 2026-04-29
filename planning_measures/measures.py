@@ -1,22 +1,17 @@
-"""
-Core measure computation orchestrator.
+"""Core measure computation orchestrator.
 
-Wires translation -> solver -> extraction. The actual measure logic
+Wires Translate -> Brave reasoning -> Extraction. The actual measure logic
 (P1 unreachability, P2 mutex, P3 sequencing) lives in `extraction.py`.
 """
 
 import logging
-import shutil
-import subprocess
-import tempfile
 import time
-from collections.abc import Callable
 from pathlib import Path
 
-from . import extraction
-from .pddl_preprocessor import strip_costs
+from .brave import run_brave_reasoning
+from .extraction import extract_measures, extract_problem_size
+from .pddl_pipeline import TranslatedProblem, translate_pddl
 from .profile import MeasureResult, TimingProfile
-from .solver import solve_brave
 
 logger = logging.getLogger(__name__)
 
@@ -26,15 +21,14 @@ def compute_measures(
     horizon: int = 20,
     domain_path: Path | str | None = None,
 ) -> MeasureResult:
-    """
-    Compute all six inconsistency measures for a planning problem.
+    """Compute all six inconsistency measures for a planning problem.
 
     Accepts either:
-    - A pre-translated .lp file (legacy mode, for test scenarios)
+    - A pre-translated `.lp` file (legacy mode, for test scenarios)
     - PDDL domain + problem files (uses plasp for translation)
 
     Args:
-        problem_path: Path to .lp file (if domain_path is None) or
+        problem_path: Path to `.lp` file (if domain_path is None) or
                       PDDL problem file (if domain_path is provided)
         horizon: Maximum steps for state space exploration.
                  Increase if solvable problems show non-zero measures.
@@ -56,39 +50,27 @@ def compute_measures(
 
     logger.info("Computing measures for %s (horizon=%d)", problem_path.name, horizon)
 
-    t_translate = 0.0
-    cleanup: Callable | None = None
-    use_bridge = False
     if domain_path is not None:
         domain_path = Path(domain_path)
         if not domain_path.exists():
             raise FileNotFoundError(f"Domain file not found: {domain_path}")
+        translated = translate_pddl(domain_path, problem_path)
+    else:
+        translated = TranslatedProblem(problem_path)
 
-        t0 = time.monotonic()
-        problem_path, use_bridge, cleanup = _translate_pddl(domain_path, problem_path)
-        t_translate = time.monotonic() - t0
-
-    try:
-        buckets, t_ground, t_solve = solve_brave(
-            problem_path,
-            horizon,
-            keep_atoms=extraction.KEEP_ATOMS,
-            use_bridge=use_bridge,
-        )
-    finally:
-        if cleanup is not None:
-            cleanup()
+    with translated as tp:
+        brave = run_brave_reasoning(tp, horizon)
+        translate_s = tp.translate_s
 
     t0 = time.monotonic()
-    outcome = extraction.collect(buckets)
-    profile = extraction.extract_measures(outcome)
-    size = extraction.extract_problem_size(outcome)
+    profile = extract_measures(brave.outcome)
+    size = extract_problem_size(brave.outcome)
     t_extract = time.monotonic() - t0
 
     timing = TimingProfile(
-        translate_s=t_translate,
-        ground_s=t_ground,
-        solve_s=t_solve,
+        translate_s=translate_s,
+        ground_s=brave.ground_s,
+        solve_s=brave.solve_s,
         extract_s=t_extract,
         total_s=time.monotonic() - t_total_start,
     )
@@ -103,39 +85,3 @@ def compute_measures(
         timing.total_s,
     )
     return MeasureResult(profile=profile, size=size, timing=timing)
-
-
-def _translate_pddl(
-    domain_path: Path, problem_path: Path
-) -> tuple[Path, bool, Callable]:
-    """Translate PDDL to ASP via plasp. Returns (lp_path, use_bridge, cleanup_fn)."""
-    logger.info(
-        "Translating PDDL via plasp: %s + %s", domain_path.name, problem_path.name
-    )
-    domain_text = strip_costs(domain_path.read_text())
-    problem_text = strip_costs(problem_path.read_text())
-
-    tmpdir = tempfile.mkdtemp()
-    tmp = Path(tmpdir)
-    (tmp / "domain.pddl").write_text(domain_text)
-    (tmp / "problem.pddl").write_text(problem_text)
-
-    result = subprocess.run(
-        ["plasp", "translate", str(tmp / "domain.pddl"), str(tmp / "problem.pddl")],
-        capture_output=True,
-        text=True,
-    )
-    if result.returncode != 0:
-        shutil.rmtree(tmpdir)
-        raise RuntimeError(
-            f"plasp translation failed for {domain_path} + {problem_path}: "
-            f"{result.stderr.strip()}"
-        )
-
-    plasp_lp = tmp / "instance.lp"
-    plasp_lp.write_text(result.stdout)
-
-    def cleanup():
-        shutil.rmtree(tmpdir, ignore_errors=True)
-
-    return plasp_lp, True, cleanup

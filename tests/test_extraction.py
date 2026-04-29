@@ -1,16 +1,11 @@
-"""Unit tests for the extraction layer (brave-output -> MeasureProfile / ProblemSize).
+"""Unit tests for the extraction layer (BraveOutcome -> MeasureProfile / ProblemSize).
 
 These tests do NOT invoke Clingo. They construct synthetic BraveOutcome objects
 and assert the pure extraction logic.
 """
 
-from planning_measures.extraction import (
-    KEEP_ATOMS,
-    BraveOutcome,
-    collect,
-    extract_measures,
-    extract_problem_size,
-)
+from planning_measures.brave import BraveOutcome
+from planning_measures.extraction import extract_measures, extract_problem_size
 from planning_measures.profile import MeasureProfile, ProblemSize
 
 
@@ -161,43 +156,3 @@ class TestExtractProblemSize:
 
     def test_empty_outcome_zero_size(self):
         assert extract_problem_size(_outcome()) == ProblemSize(0, 0, 0)
-
-
-class TestKeepAtoms:
-    def test_keep_atoms_lists_canonical_atom_names(self):
-        assert KEEP_ATOMS == frozenset(
-            {
-                "goal",
-                "prop",
-                "operator",
-                "true_reachable",
-                "coexist_witness",
-                "g2_after_g1_witness",
-            }
-        )
-
-
-class TestCollect:
-    def test_collect_buckets_into_typed_outcome(self):
-        buckets = {
-            "goal": [("g1",), ("g2",)],
-            "prop": [("g1",), ("g2",), ("p",)],
-            "operator": [("o1",)],
-            "true_reachable": [("g1",), ("p",)],
-            "coexist_witness": [("g1", "g2")],
-            "g2_after_g1_witness": [("g1", "g2"), ("g2", "g1")],
-        }
-        outcome = collect(buckets)
-
-        assert outcome.goals == frozenset({"g1", "g2"})
-        assert outcome.props == frozenset({"g1", "g2", "p"})
-        assert outcome.operators == frozenset({"o1"})
-        assert outcome.true_reachable == frozenset({"g1", "p"})
-        assert outcome.coexist_witness == frozenset({("g1", "g2")})
-        assert outcome.g2_after_g1_witness == frozenset({("g1", "g2"), ("g2", "g1")})
-
-    def test_collect_missing_keys_default_empty(self):
-        """A bucket dict with no entries for a key yields empty frozenset."""
-        outcome = collect({})
-        assert outcome.goals == frozenset()
-        assert outcome.coexist_witness == frozenset()
