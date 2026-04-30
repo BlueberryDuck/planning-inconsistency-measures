@@ -12,6 +12,7 @@ from pathlib import Path
 
 import clingo
 
+from .extraction import BraveOutcome
 from .pddl_pipeline import TranslatedProblem
 
 logger = logging.getLogger(__name__)
@@ -33,23 +34,6 @@ _KEEP_ATOMS: frozenset[str] = frozenset(
         "g2_after_g1_witness",
     }
 )
-
-
-@dataclass(frozen=True)
-class BraveOutcome:
-    """Raw atom sets produced by a single brave-reasoning pass.
-
-    Typed handoff from Brave reasoning to Extraction. No pre-derived
-    intersections — `extract_measures` does the set algebra so test inputs
-    stay faithful to the raw atom-set output.
-    """
-
-    goals: frozenset[str]
-    props: frozenset[str]
-    operators: frozenset[str]
-    true_reachable: frozenset[str]
-    coexist_witness: frozenset[tuple[str, str]]
-    g2_after_g1_witness: frozenset[tuple[str, str]]
 
 
 @dataclass(frozen=True)

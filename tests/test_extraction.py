@@ -4,8 +4,11 @@ These tests do NOT invoke Clingo. They construct synthetic BraveOutcome objects
 and assert the pure extraction logic.
 """
 
-from planning_measures.brave import BraveOutcome
-from planning_measures.extraction import extract_measures, extract_problem_size
+from planning_measures.extraction import (
+    BraveOutcome,
+    extract_measures,
+    extract_problem_size,
+)
 from planning_measures.profile import MeasureProfile, ProblemSize
 
 

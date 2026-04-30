@@ -9,11 +9,8 @@ from pathlib import Path
 
 import pytest
 
-from planning_measures.brave import (
-    BraveOutcome,
-    BraveReasoningResult,
-    run_brave_reasoning,
-)
+from planning_measures.brave import BraveReasoningResult, run_brave_reasoning
+from planning_measures.extraction import BraveOutcome
 from planning_measures.pddl_pipeline import TranslatedProblem
 
 SCENARIOS_DIR = Path(__file__).parent / "scenarios"

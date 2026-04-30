@@ -94,7 +94,7 @@ class TestProblemSize:
 
     def test_is_frozen(self):
         size = ProblemSize(num_goals=1, num_props=2, num_operators=3)
-        with pytest.raises((AttributeError, Exception)):
+        with pytest.raises(AttributeError):
             size.num_goals = 99  # type: ignore[misc]
 
     def test_field_names_locks_csv_order(self):
@@ -130,7 +130,7 @@ class TestMeasureResult:
             size=ProblemSize(0, 0, 0),
             timing=TimingProfile(),
         )
-        with pytest.raises((AttributeError, Exception)):
+        with pytest.raises(AttributeError):
             result.profile = MeasureProfile(1, 1, 1, 1, 1, 1)  # type: ignore[misc]
 
     def test_summary_renders_profile_size_and_category(self):

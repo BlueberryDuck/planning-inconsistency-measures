@@ -1,11 +1,30 @@
 """Pure set-algebra extraction over a `BraveOutcome`.
 
-No Clingo dependency. Consumes the typed handoff produced by Brave reasoning
-and computes the six-measure `MeasureProfile` and the `ProblemSize`.
+No Clingo dependency. Owns `BraveOutcome` (the typed handoff from Brave
+reasoning) and computes the six-measure `MeasureProfile` and the
+`ProblemSize` from it.
 """
 
-from .brave import BraveOutcome
+from dataclasses import dataclass
+
 from .profile import MeasureProfile, ProblemSize
+
+
+@dataclass(frozen=True)
+class BraveOutcome:
+    """Raw atom sets produced by a single brave-reasoning pass.
+
+    Typed handoff from Brave reasoning to Extraction. No pre-derived
+    intersections — `extract_measures` does the set algebra so test inputs
+    stay faithful to the raw atom-set output.
+    """
+
+    goals: frozenset[str]
+    props: frozenset[str]
+    operators: frozenset[str]
+    true_reachable: frozenset[str]
+    coexist_witness: frozenset[tuple[str, str]]
+    g2_after_g1_witness: frozenset[tuple[str, str]]
 
 
 def extract_measures(outcome: BraveOutcome) -> MeasureProfile:

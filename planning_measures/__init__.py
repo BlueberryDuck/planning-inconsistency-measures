@@ -24,9 +24,8 @@ subprocess when timeout > 0:
         print(result.summary())
 """
 
-from .brave import BraveOutcome
 from .execution import ExecutionResult, compute_with_timeout
-from .extraction import extract_measures, extract_problem_size
+from .extraction import BraveOutcome, extract_measures, extract_problem_size
 from .measures import compute_measures
 from .pddl_pipeline import TranslatedProblem
 from .profile import MeasureProfile, MeasureResult, ProblemSize, TimingProfile
