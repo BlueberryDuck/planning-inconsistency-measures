@@ -6,14 +6,11 @@ Installed as `planning-measures` console script via pyproject.toml entry point.
 
 import argparse
 import logging
-import multiprocessing as mp
 import sys
-import time
-from multiprocessing.queues import Queue
 from pathlib import Path
 
-from . import compute_measures
 from .batch import run_benchmark
+from .execution import compute_with_timeout
 
 
 def _check_path(path: Path) -> None:
@@ -33,17 +30,6 @@ def _check_path(path: Path) -> None:
     sys.exit(1)
 
 
-def _compute_worker(
-    queue: Queue, problem: str, domain: str | None, horizon: int
-) -> None:
-    """Child process for timeout-protected compute."""
-    try:
-        profile, timing = compute_measures(problem, domain_path=domain, horizon=horizon)
-        queue.put(("ok", (profile, timing)))
-    except Exception as e:
-        queue.put(("error", f"{type(e).__name__}: {e}"))
-
-
 def cmd_compute(args: argparse.Namespace) -> None:
     """Compute measures for a single problem."""
     path = Path(args.problem)
@@ -54,43 +40,20 @@ def cmd_compute(args: argparse.Namespace) -> None:
 
     print(f"Computing measures for {path.name}...", flush=True)
 
-    start = time.monotonic()
-    timeout = args.timeout
+    execution = compute_with_timeout(path, domain_path, args.horizon, args.timeout)
 
-    if timeout > 0:
-        ctx = mp.get_context("spawn")
-        queue = ctx.Queue()
-        proc = ctx.Process(
-            target=_compute_worker,
-            args=(
-                queue,
-                str(path),
-                str(domain_path) if domain_path else None,
-                args.horizon,
-            ),
-        )
-        proc.start()
-        proc.join(timeout=timeout)
+    if execution.status == "timeout":
+        print(f"\nTimed out after {execution.elapsed_s:.1f}s", file=sys.stderr)
+        sys.exit(1)
+    if execution.status == "error":
+        print(f"\n{execution.message}", file=sys.stderr)
+        sys.exit(1)
 
-        if proc.is_alive():
-            proc.kill()
-            proc.join()
-            elapsed = time.monotonic() - start
-            print(f"\nTimed out after {elapsed:.1f}s", file=sys.stderr)
-            sys.exit(1)
-
-        status, value = queue.get_nowait()
-        if status == "error":
-            print(f"\n{value}", file=sys.stderr)
-            sys.exit(1)
-        profile, timing = value
-    else:
-        profile, timing = compute_measures(
-            path, domain_path=domain_path, horizon=args.horizon
-        )
+    result = execution.unwrap()
+    timing = result.timing
 
     print()
-    print(profile.summary())
+    print(result.summary())
     print("\nTiming breakdown:")
     if timing.translate_s > 0:
         print(f"  Translation: {timing.translate_s:.3f}s")

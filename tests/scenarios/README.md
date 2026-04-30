@@ -70,32 +70,30 @@ Tests boundary conditions and solvable instances to ensure no false positives.
 - **negative_precondition**: Operator blocked by `neg_precond` when proposition holds
 - **single_goal**: Degenerate case with only one goal (no pairs to conflict)
 
-## Directory Structure
+## Scenario Layout
+
+Test modules are listed in the [project structure section of the root README](../../README.md#project-structure).
 
 ```
-tests/
-├── test_measures.py           # pytest: measure computation + hierarchy
-├── test_plasp.py              # pytest: plasp pipeline + preprocessor
-├── pddl/                      # PDDL versions of scenarios
-└── scenarios/
-    ├── README.md              # This file
-    ├── p1_unreachability/     # Pure unreachability conflicts
-    │   ├── locked_door.lp
-    │   └── bank_vault.lp
-    ├── p2_mutex/              # Pure mutex conflicts
-    │   ├── light_switch.lp
-    │   └── traffic_light.lp
-    ├── mixed/                 # Multiple conflict types
-    │   ├── trust_travel.lp
-    │   └── rival_alliances.lp
-    └── edge_cases/            # Zero-measure and trivial cases
-        ├── coexisting_goals.lp
-        ├── delete_relaxation.lp
-        ├── empty_goals.lp
-        ├── horizon_sensitive.lp
-        ├── negative_precondition.lp
-        ├── single_goal.lp
-        └── unsatisfiable.lp
+scenarios/
+├── README.md              # This file
+├── p1_unreachability/     # Pure unreachability conflicts
+│   ├── locked_door.lp
+│   └── bank_vault.lp
+├── p2_mutex/              # Pure mutex conflicts
+│   ├── light_switch.lp
+│   └── traffic_light.lp
+├── mixed/                 # Multiple conflict types
+│   ├── trust_travel.lp
+│   └── rival_alliances.lp
+└── edge_cases/            # Zero-measure and trivial cases
+    ├── coexisting_goals.lp
+    ├── delete_relaxation.lp
+    ├── empty_goals.lp
+    ├── horizon_sensitive.lp
+    ├── negative_precondition.lp
+    ├── single_goal.lp
+    └── unsatisfiable.lp
 ```
 
 ## Running Tests
@@ -117,7 +115,6 @@ Expected output:
 tests/test_measures.py::test_scenario_profile[p1_unreachability/locked_door-expected0] PASSED
 tests/test_measures.py::test_scenario_profile[p1_unreachability/bank_vault-expected1] PASSED
 ...
-38 passed
 ```
 
 ## Adding New Scenarios

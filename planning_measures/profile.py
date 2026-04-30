@@ -1,5 +1,10 @@
 """
-MeasureProfile and TimingProfile dataclasses representing diagnostic results.
+Dataclasses for diagnostic results.
+
+- `MeasureProfile`: six-measure diagnostic profile with derived `category`.
+- `ProblemSize`: cardinalities (goals, propositions, operators) of an input instance.
+- `TimingProfile`: per-phase wall-clock breakdown.
+- `MeasureResult`: envelope bundling profile + size + timing, owns `summary()`.
 """
 
 from dataclasses import dataclass
@@ -24,15 +29,47 @@ class TimingProfile:
     extract_s: float = 0.0
     total_s: float = 0.0
 
+    @classmethod
+    def field_names(cls) -> list[str]:
+        """Schema for timing fields in CSV/dict output (ordered)."""
+        return [
+            "time_translate_s",
+            "time_ground_s",
+            "time_solve_s",
+            "time_extract_s",
+            "time_total_s",
+        ]
+
     def as_dict(self) -> dict[str, float]:
-        """Return timing as a dict suitable for CSV output."""
+        """Return timing as a dict keyed by `field_names()` (rounded to 4dp)."""
+        attrs = ["translate_s", "ground_s", "solve_s", "extract_s", "total_s"]
         return {
-            "time_translate_s": round(self.translate_s, 4),
-            "time_ground_s": round(self.ground_s, 4),
-            "time_solve_s": round(self.solve_s, 4),
-            "time_extract_s": round(self.extract_s, 4),
-            "time_total_s": round(self.total_s, 4),
+            name: round(getattr(self, attr), 4)
+            for name, attr in zip(self.field_names(), attrs)
         }
+
+
+@dataclass(frozen=True)
+class ProblemSize:
+    """
+    Cardinalities describing the size of a planning instance.
+
+    Distinct from MeasureProfile: a profile says how *inconsistent* a problem is;
+    ProblemSize says how *big* it is.
+    """
+
+    num_goals: int
+    num_props: int
+    num_operators: int
+
+    @classmethod
+    def field_names(cls) -> list[str]:
+        """Schema for problem-size fields in CSV/dict output (ordered)."""
+        return ["num_goals", "num_props", "num_operators"]
+
+    def as_dict(self) -> dict[str, int]:
+        """Return cardinalities as a dict keyed by `field_names()`."""
+        return {name: getattr(self, name) for name in self.field_names()}
 
 
 @dataclass(frozen=True)
@@ -60,9 +97,23 @@ class MeasureProfile:
     mx_struct: int
     gs_scope: int
     gs_struct: int
-    num_goals: int = 0
-    num_props: int = 0
-    num_operators: int = 0
+
+    @classmethod
+    def field_names(cls) -> list[str]:
+        """Schema for measure-profile fields in CSV/dict output (ordered)."""
+        return [
+            "ur_scope",
+            "ur_struct",
+            "mx_scope",
+            "mx_struct",
+            "gs_scope",
+            "gs_struct",
+            "category",
+        ]
+
+    def as_dict(self) -> dict:
+        """Return profile as a dict keyed by `field_names()` (category derived)."""
+        return {name: getattr(self, name) for name in self.field_names()}
 
     def as_tuple(self) -> tuple[int, int, int, int, int, int]:
         """Return profile as a 6-tuple."""
@@ -104,23 +155,39 @@ class MeasureProfile:
         """True if all measures are zero (no conflicts detected)."""
         return self.as_tuple() == (0, 0, 0, 0, 0, 0)
 
+
+@dataclass(frozen=True)
+class MeasureResult:
+    """
+    Envelope returned by `compute_measures`.
+
+    Bundles the diagnostic profile, the input's problem size, and per-phase
+    timing. Owns the human-readable `summary()` view that crosses all three.
+    """
+
+    profile: MeasureProfile
+    size: ProblemSize
+    timing: TimingProfile
+
     def summary(self) -> str:
-        """Human-readable summary of the profile."""
+        """Human-readable summary of the result (profile + size + category)."""
+        p = self.profile
+        s = self.size
         lines = [
-            f"Profile: {self}",
-            f"Category: {self.category}",
-            f"Problem size: {self.num_goals} goals, {self.num_props} propositions, {self.num_operators} operators",
+            f"Profile: {p}",
+            f"Category: {p.category}",
+            f"Problem size: {s.num_goals} goals, {s.num_props} propositions, {s.num_operators} operators",
             "",
             "P1 Unreachability:",
-            f"  - Unreachable goals: {self.ur_scope}",
-            f"  - Total unreachable propositions: {self.ur_struct}",
+            f"  - Unreachable goals: {p.ur_scope}",
+            f"  - Total unreachable propositions: {p.ur_struct}",
             "",
             "P2 Mutex:",
-            f"  - Goals in mutex: {self.mx_scope}",
-            f"  - Mutex pairs: {self.mx_struct}",
+            f"  - Goals in mutex: {p.mx_scope}",
+            f"  - Mutex pairs: {p.mx_struct}",
             "",
             "P3 Sequencing:",
-            f"  - Goals in sequencing conflicts: {self.gs_scope}",
-            f"  - Conflict pairs (ordered): {self.gs_struct}",
+            f"  - Goals in sequencing conflicts: {p.gs_scope}",
+            f"  - Conflict pairs (ordered): {p.gs_struct}",
         ]
         return "\n".join(lines)

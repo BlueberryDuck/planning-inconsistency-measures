@@ -4,8 +4,8 @@ title: "Planning Inconsistency Measures"
 authors:
   - family-names: "Bunge"
     given-names: "Sebastian"
-version: "1.0.0"
-date-released: "2026-04-18"
+version: "1.1.0"
+date-released: "2026-04-30"
 license: MIT
 repository-code: "https://github.com/BlueberryDuck/planning-inconsistency-measures"
 preferred-citation:

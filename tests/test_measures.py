@@ -1,14 +1,22 @@
 """
-Tests for planning inconsistency measures.
+Integration tests for compute_measures (translate -> solve -> extract).
 
-Run with: pytest tests/ -v
+Unit tests on the pure extraction logic live in test_extraction.py.
+
+Run with: pytest tests/test_measures.py -v
 """
 
 from pathlib import Path
 
 import pytest
 
-from planning_measures import MeasureProfile, TimingProfile, compute_measures
+from planning_measures import (
+    MeasureProfile,
+    MeasureResult,
+    ProblemSize,
+    TimingProfile,
+    compute_measures,
+)
 
 SCENARIOS_DIR = Path(__file__).parent / "scenarios"
 
@@ -33,37 +41,22 @@ EXPECTED = {
 def test_scenario_profile(scenario: str, expected: tuple):
     """Each scenario should produce the expected measure profile."""
     path = SCENARIOS_DIR / f"{scenario}.lp"
-    profile, _ = compute_measures(path)
-    assert profile.as_tuple() == expected
-
-
-class TestMeasureProfile:
-    """Tests for MeasureProfile dataclass."""
-
-    def test_category_unreachability(self):
-        p = MeasureProfile(1, 3, 0, 0, 0, 0)
-        assert p.category == "2a"
-
-    def test_category_sequencing(self):
-        p = MeasureProfile(0, 0, 2, 1, 2, 1)
-        assert p.category == "2c-sequencing"
-
-    def test_category_mutex(self):
-        p = MeasureProfile(0, 0, 2, 1, 0, 0)
-        assert p.category == "2c-mutex"
-
-    def test_category_consistent(self):
-        p = MeasureProfile(0, 0, 0, 0, 0, 0)
-        assert p.category == "consistent"
-        assert p.is_consistent
-
-    def test_str_format(self):
-        p = MeasureProfile(1, 2, 3, 4, 5, 6)
-        assert str(p) == "(1,2,3,4,5,6)"
+    result = compute_measures(path)
+    assert isinstance(result, MeasureResult)
+    assert result.profile.as_tuple() == expected
 
 
 class TestComputeMeasuresAPI:
     """Tests for the public compute_measures function."""
+
+    def test_returns_populated_measure_result(self):
+        """One Compute should yield a MeasureResult with profile, size, timing populated."""
+        result = compute_measures(SCENARIOS_DIR / "edge_cases/single_goal.lp")
+        assert isinstance(result, MeasureResult)
+        assert isinstance(result.profile, MeasureProfile)
+        assert isinstance(result.size, ProblemSize)
+        assert isinstance(result.timing, TimingProfile)
+        assert result.size.num_goals == 1  # ready
 
     def test_file_not_found(self):
         with pytest.raises(FileNotFoundError, match="Problem file not found"):
@@ -77,16 +70,16 @@ class TestComputeMeasuresAPI:
     def test_horizon_sensitivity(self):
         """Insufficient horizon should report false unreachability."""
         # Chain a->b->c->d needs 3 steps; horizon=2 is too short
-        short, _ = compute_measures(
+        short = compute_measures(
             SCENARIOS_DIR / "edge_cases/horizon_sensitive.lp", horizon=2
         )
-        assert short.ur_scope == 1  # d appears unreachable
+        assert short.profile.ur_scope == 1  # d appears unreachable
 
         # Sufficient horizon resolves the chain
-        full, _ = compute_measures(
+        full = compute_measures(
             SCENARIOS_DIR / "edge_cases/horizon_sensitive.lp", horizon=3
         )
-        assert full.is_consistent
+        assert full.profile.is_consistent
 
 
 class TestMeasureHierarchy:
@@ -94,24 +87,22 @@ class TestMeasureHierarchy:
 
     def test_unreachable_excludes_other_conflicts(self):
         """Unreachable goals don't participate in mutex/sequencing."""
-        profile, _ = compute_measures(
-            SCENARIOS_DIR / "p1_unreachability/locked_door.lp"
-        )
-        assert profile.ur_scope > 0
-        assert profile.mx_scope == 0
-        assert profile.gs_scope == 0
+        result = compute_measures(SCENARIOS_DIR / "p1_unreachability/locked_door.lp")
+        assert result.profile.ur_scope > 0
+        assert result.profile.mx_scope == 0
+        assert result.profile.gs_scope == 0
 
     def test_sequencing_implies_mutex(self):
         """Sequencing conflicts imply mutex."""
-        profile, _ = compute_measures(SCENARIOS_DIR / "mixed/trust_travel.lp")
-        assert profile.gs_scope > 0
-        assert profile.mx_scope >= profile.gs_scope
+        result = compute_measures(SCENARIOS_DIR / "mixed/trust_travel.lp")
+        assert result.profile.gs_scope > 0
+        assert result.profile.mx_scope >= result.profile.gs_scope
 
     def test_mutex_without_sequencing_is_reversible(self):
         """Mutex without sequencing means reversible conflicts."""
-        profile, _ = compute_measures(SCENARIOS_DIR / "p2_mutex/light_switch.lp")
-        assert profile.mx_scope > 0
-        assert profile.gs_scope == 0
+        result = compute_measures(SCENARIOS_DIR / "p2_mutex/light_switch.lp")
+        assert result.profile.mx_scope > 0
+        assert result.profile.gs_scope == 0
 
     def test_delete_effects_block_reachability(self):
         """Delete effects must prevent false reachability claims.
@@ -120,34 +111,22 @@ class TestMeasureHierarchy:
         because a and b are individually reachable. But {a,b} never coexist
         due to o1 deleting a, so o2 is never applicable and c is unreachable.
         """
-        profile, _ = compute_measures(SCENARIOS_DIR / "edge_cases/delete_relaxation.lp")
-        assert profile.ur_scope == 1  # c is unreachable
-        assert profile.ur_struct == 1  # only c is unreachable (a, b both reachable)
-        assert profile.mx_scope == 0  # no achievable goals to be mutex
-        assert profile.gs_scope == 0
+        result = compute_measures(SCENARIOS_DIR / "edge_cases/delete_relaxation.lp")
+        assert result.profile.ur_scope == 1  # c is unreachable
+        assert result.profile.ur_struct == 1  # only c is unreachable
+        assert result.profile.mx_scope == 0  # no achievable goals to be mutex
+        assert result.profile.gs_scope == 0
 
 
 class TestTimingProfile:
-    """Tests for per-phase timing breakdown."""
+    """Tests for per-phase timing populated by the pipeline."""
 
     def test_timing_returned(self):
-        """compute_measures should return a TimingProfile alongside the MeasureProfile."""
-        _, timing = compute_measures(SCENARIOS_DIR / "p1_unreachability/locked_door.lp")
+        """compute_measures should expose a TimingProfile via the result."""
+        result = compute_measures(SCENARIOS_DIR / "p1_unreachability/locked_door.lp")
+        timing = result.timing
         assert isinstance(timing, TimingProfile)
         assert timing.ground_s > 0
         assert timing.solve_s > 0
         assert timing.total_s > 0
         assert timing.translate_s == 0.0  # .lp input, no plasp
-
-    def test_timing_as_dict(self):
-        """as_dict should return all timing fields with correct keys."""
-        _, timing = compute_measures(SCENARIOS_DIR / "edge_cases/single_goal.lp")
-        d = timing.as_dict()
-        assert set(d.keys()) == {
-            "time_translate_s",
-            "time_ground_s",
-            "time_solve_s",
-            "time_extract_s",
-            "time_total_s",
-        }
-        assert all(isinstance(v, float) for v in d.values())

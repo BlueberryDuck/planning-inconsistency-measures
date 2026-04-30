@@ -2,7 +2,7 @@
 
 _Part of [Planning Inconsistency Measures](../README.md)._
 
-CSV outputs from running the measures on unsolvable-planning benchmarks. One row per PDDL problem. The CSV schema is in the root [README.md](../README.md#batch-benchmarking). Measure and timing columns mirror the `MeasureProfile` and `TimingProfile` dataclasses. The run-specific `status` column values are documented below.
+CSV outputs from running the measures on unsolvable-planning benchmarks. One row per PDDL problem. The CSV schema is in the root [README.md](../README.md#batch-benchmarking). Size, measure, and timing columns mirror the `ProblemSize`, `MeasureProfile`, and `TimingProfile` dataclasses. The run-specific `status` column values are documented below.
 
 ## Provenance
 
