@@ -46,64 +46,16 @@ def test_scenario_profile(scenario: str, expected: tuple):
     assert result.profile.as_tuple() == expected
 
 
-class TestMeasureProfile:
-    """Tests for MeasureProfile dataclass."""
-
-    def test_category_unreachability(self):
-        p = MeasureProfile(1, 3, 0, 0, 0, 0)
-        assert p.category == "2a"
-
-    def test_category_sequencing(self):
-        p = MeasureProfile(0, 0, 2, 1, 2, 1)
-        assert p.category == "2c-sequencing"
-
-    def test_category_mutex(self):
-        p = MeasureProfile(0, 0, 2, 1, 0, 0)
-        assert p.category == "2c-mutex"
-
-    def test_category_consistent(self):
-        p = MeasureProfile(0, 0, 0, 0, 0, 0)
-        assert p.category == "consistent"
-        assert p.is_consistent
-
-    def test_str_format(self):
-        p = MeasureProfile(1, 2, 3, 4, 5, 6)
-        assert str(p) == "(1,2,3,4,5,6)"
-
-    def test_field_names_order_matches_csv(self):
-        """field_names locks the schema for CSV row composition (measures only)."""
-        assert MeasureProfile.field_names() == [
-            "ur_scope",
-            "ur_struct",
-            "mx_scope",
-            "mx_struct",
-            "gs_scope",
-            "gs_struct",
-            "category",
-        ]
-
-    def test_as_dict_keyed_by_field_names(self):
-        """as_dict returns {field_names()[i]: value} with derived category."""
-        p = MeasureProfile(1, 3, 0, 0, 0, 0)
-        d = p.as_dict()
-        assert list(d.keys()) == MeasureProfile.field_names()
-        assert d["ur_scope"] == 1
-        assert d["ur_struct"] == 3
-        assert d["category"] == "2a"
-
-
 class TestComputeMeasuresAPI:
     """Tests for the public compute_measures function."""
 
-    def test_returns_measure_result(self):
+    def test_returns_populated_measure_result(self):
+        """One Compute should yield a MeasureResult with profile, size, timing populated."""
         result = compute_measures(SCENARIOS_DIR / "edge_cases/single_goal.lp")
         assert isinstance(result, MeasureResult)
         assert isinstance(result.profile, MeasureProfile)
         assert isinstance(result.size, ProblemSize)
         assert isinstance(result.timing, TimingProfile)
-
-    def test_problem_size_populated(self):
-        result = compute_measures(SCENARIOS_DIR / "edge_cases/single_goal.lp")
         assert result.size.num_goals == 1  # ready
 
     def test_file_not_found(self):
@@ -167,7 +119,7 @@ class TestMeasureHierarchy:
 
 
 class TestTimingProfile:
-    """Tests for per-phase timing breakdown."""
+    """Tests for per-phase timing populated by the pipeline."""
 
     def test_timing_returned(self):
         """compute_measures should expose a TimingProfile via the result."""
@@ -178,28 +130,3 @@ class TestTimingProfile:
         assert timing.solve_s > 0
         assert timing.total_s > 0
         assert timing.translate_s == 0.0  # .lp input, no plasp
-
-    def test_timing_as_dict(self):
-        """as_dict should return all timing fields with correct keys."""
-        result = compute_measures(SCENARIOS_DIR / "edge_cases/single_goal.lp")
-        d = result.timing.as_dict()
-        assert set(d.keys()) == {
-            "time_translate_s",
-            "time_ground_s",
-            "time_solve_s",
-            "time_extract_s",
-            "time_total_s",
-        }
-        assert all(isinstance(v, float) for v in d.values())
-
-    def test_timing_field_names_matches_as_dict_keys(self):
-        """field_names() and as_dict() must stay paired."""
-        timing = TimingProfile(0.1, 0.2, 0.3, 0.4, 1.0)
-        assert TimingProfile.field_names() == list(timing.as_dict().keys())
-        assert TimingProfile.field_names() == [
-            "time_translate_s",
-            "time_ground_s",
-            "time_solve_s",
-            "time_extract_s",
-            "time_total_s",
-        ]

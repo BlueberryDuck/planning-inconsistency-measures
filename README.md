@@ -143,6 +143,8 @@ Two layers:
 - **Library** (`planning_measures/`): importable Python package with `compute_measures()` and `compute_with_timeout()`. `compute_measures()` returns a `MeasureResult` and raises on failure; `compute_with_timeout()` returns a discriminated `ExecutionResult` carrying that `MeasureResult`. Uses Python `logging` (no output unless caller configures a handler). Dependencies: clingo (Python), plasp (external).
 - **CLI** (`planning_measures/cli.py`): `planning-measures` console script, installed via `pyproject.toml` entry point. Not imported by library or tests.
 
+The CLI and batch runner are both thin formatters over `planning_measures/execution.py`, which owns timeout enforcement and CSV row composition.
+
 The PDDL pipeline:
 
 1. **Preprocess** (`pddl_pipeline.strip_costs`): strips action costs from PDDL (irrelevant to inconsistency measures)
